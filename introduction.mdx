@@ -1,7 +1,7 @@
 ---
-title: "A.D.A.M.: Spec-First Depth Control for AI Chat"
+title: "A.D.A.M.: Spec-First Protocol for AI Response Depth Control"
 sidebarTitle: "Introduction"
-description: "A.D.A.M. is a portable text protocol that gives every AI reply an explicit depth label — LOW, MID, or DEEP — based on the structure of the user's request."
+description: "A.D.A.M. is a portable text protocol that gives every AI reply an explicit depth label — LOW, MID, or DEEP — based on input structure."
 ---
 
 A.D.A.M. (Adaptive Depth and Mode) is a behavioral specification for AI chat. You load the protocol file into your chat host's instruction field, send a single handshake command, and every response the assistant produces from that point forward is explicitly labeled with a depth mode. No library to install. No service to call. The spec is the implementation — loading `A.D.A.M.v5.txt` into a compatible host makes it the active session contract.
@@ -52,6 +52,31 @@ When A.D.A.M. detects that a request may benefit from deeper reasoning but `DEEP
 | `SYS_STATUS.md` | Lightweight session health and status probe. |
 | `docs/lexicon.md` | Official terminology used across the repo. |
 | `docs/field-report-chat.md` | Field report from a real multi-iteration creative workflow. |
+
+## Command reference
+
+A.D.A.M. exposes two groups of commands. All commands are case-sensitive and must start at character 1 of the message.
+
+**Public core commands** control the protocol lifecycle:
+
+| Command | What it does |
+|---|---|
+| `ADAM PING` | Activate the protocol (first use) or confirm liveness (subsequent uses). |
+| `ADAM OFF` | Suspend the protocol. Replies become plain chat with no `MODE` tags. |
+| `ADAM ON` | Resume the protocol after `ADAM OFF`. |
+| `ADAM REMOUNT` | Generate a recovery capsule. Paste the capsule back exactly to re-enter `ACTIVE` from any state. |
+| `ADAM PERSIST` | Deploy a verified physical copy of the protocol source to the best available local destination. |
+
+**Operator commands** are diagnostic probes:
+
+| Command | What it does |
+|---|---|
+| `ADAM SELF TEST` | Run the external self-test probe (`ADAM_SELF_TEST.md`). |
+| `SYS STATUS` | Run the external system status probe (`SYS_STATUS.md`). |
+| `TRACE INPUT` | Emit a strict forensic trace of the last visible user input. |
+| `UNSUPPORTED WHY` | After `ADAM_UNSUPPORTED`, returns `CAUSE <CLASS>` identifying why the invariant failed. |
+
+**Manual overrides** are not commands — they are prefix tokens. Starting your message with `LOW`, `MID`, or `DEEP` (followed by a space) forces that mode for the current reply, taking priority over automatic routing.
 
 ## Who A.D.A.M. is for
 

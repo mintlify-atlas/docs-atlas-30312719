@@ -1,5 +1,5 @@
 ---
-title: "Operator Commands: TRACE INPUT, SYS STATUS, SELF TEST, UNSUPPORTED WHY"
+title: "Operator Commands: TRACE INPUT, SYS STATUS, SELF TEST"
 sidebarTitle: "Operator Commands"
 description: "Reference for A.D.A.M.'s four operator diagnostic commands — strict-output probes for input tracing, system health, self-testing, and failure diagnosis."
 ---
@@ -87,8 +87,8 @@ SYS STATUS
 | Behavior | Description |
 |---|---|
 | `TAG` | Mode tag presence and correctness on normal replies |
-| `FACTOID` | Factoid routing (LOW) accuracy |
-| `BANTER` | Banter routing (LOW) accuracy |
+| `FACTOID+AUTO_LIGHT` | Factoid routing (LOW) accuracy |
+| `BANTER+LIGHT_MINIMAL` | Banter routing (LOW) accuracy |
 | `DEEP_GATING` | Correct DEEP gating flow when `DEEP_CANDIDATE` is true |
 | `GATING_NO` | Correct handling of a `no` response to gating |
 | `NO_INERTIA` | Mode recomputation on every turn (no carry-over from prior mode) |

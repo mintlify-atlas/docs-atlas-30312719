@@ -1,7 +1,7 @@
 ---
-title: "Session Recovery with ADAM REMOUNT"
+title: "Session Recovery with ADAM REMOUNT: Restoring Active State"
 sidebarTitle: "Recovery and Remount"
-description: "After context loss or session interruption, use ADAM REMOUNT to generate a recovery capsule and replay it to restore A.D.A.M. to ACTIVE state from any prior state."
+description: "After context loss, use ADAM REMOUNT to generate a recovery capsule and replay it to restore A.D.A.M. to ACTIVE state without reloading the full spec."
 ---
 
 A.D.A.M. does not persist state across chat sessions. Every new session begins in `TRANSPORT` state, and the full `A.D.A.M.v5.txt` file must be present in the host's instruction field for the protocol to operate. If a session is interrupted, the context window is truncated, or the host resets its state, the protocol will not silently degrade — it will either fail-closed or revert to `TRANSPORT`.

@@ -1,7 +1,7 @@
 ---
-title: "Get Started with A.D.A.M. in 30 Seconds"
+title: "Quickstart: Activate A.D.A.M. and Send Your First Ping"
 sidebarTitle: "Quickstart"
-description: "Load A.D.A.M.v5.txt into your AI chat host, send ADAM PING to activate, and start receiving depth-labeled responses immediately."
+description: "Load A.D.A.M.v5.txt into your AI chat host, send ADAM PING to activate, and start receiving explicitly depth-labeled responses immediately."
 ---
 
 The entire A.D.A.M. protocol is a single portable text file. There is nothing to install and no account to create. You copy the file, paste it into your host's instruction field, and send one command. From that point forward, every response is depth-labeled and governed by the protocol contract.
@@ -103,3 +103,41 @@ The `BOOTSTRAP_CLASS` line in the first `ADAM PING` response reports what the pr
 | `GHOST` | The bootstrap ran but no sufficient classification basis remained. No stable physical bind was established. |
 
 `TEXT_ONLY` is a normal, valid operating condition — not a failure. Most hosted chat environments will report `TEXT_ONLY` because they do not expose a writable local file system to the model. The protocol governs responses correctly in all four classes.
+
+## Lifecycle commands
+
+After activation you can control the protocol session with the following core commands. All commands are case-sensitive and must occupy the entire message (exact full-message match after trimming).
+
+| Command | What it does |
+|---|---|
+| `ADAM PING` | Confirm liveness while already active. Returns the 2-line response. |
+| `ADAM OFF` | Suspend the protocol. Replies become plain chat with no `MODE` tags. |
+| `ADAM ON` | Resume the protocol after `ADAM OFF`. |
+| `ADAM REMOUNT` | Emit a recovery capsule. If session context is lost, paste the capsule back exactly to re-enter `ACTIVE`. |
+| `ADAM PERSIST` | Deploy and verify a physical copy of the protocol source to the best available local destination (requires `BOUND_RO` or `BOUND_RW` bootstrap class). |
+
+## Diagnostic commands
+
+Operator commands are available while the protocol is `ACTIVE`. They do not change protocol state.
+
+| Command | What it does |
+|---|---|
+| `ADAM SELF TEST` | Run the external self-test probe (`ADAM_SELF_TEST.md`). Returns `SOURCE_FILE_UNAVAILABLE ADAM_SELF_TEST.md` if the file is not in context. |
+| `SYS STATUS` | Run the external system status probe (`SYS_STATUS.md`). Returns `SOURCE_FILE_UNAVAILABLE SYS_STATUS.md` if the file is not in context. |
+| `TRACE INPUT` | Emit a strict forensic trace of the last visible user input: character count, head, tail, and structural classification. |
+| `UNSUPPORTED WHY` | After receiving `ADAM_UNSUPPORTED`, send this command to receive a single-line `CAUSE <CLASS>` diagnostic. |
+
+<CardGroup cols={2}>
+  <Card title="How It Works" icon="gears" href="/how-it-works">
+    Understand the priority ladder, structural kernel, and output contract that govern every reply.
+  </Card>
+  <Card title="Modes" icon="sliders" href="/concepts/modes">
+    Deep-dive into LOW, MID, DEEP, and the POSSIBLE DEEP gating flow.
+  </Card>
+  <Card title="Core Commands" icon="terminal" href="/reference/commands/core-commands">
+    Full reference for ADAM PING, ADAM OFF, ADAM ON, ADAM REMOUNT, and ADAM PERSIST.
+  </Card>
+  <Card title="Recovery and Remount" icon="rotate" href="/guides/recovery-and-remount">
+    How to use ADAM REMOUNT to recover a lost session context.
+  </Card>
+</CardGroup>

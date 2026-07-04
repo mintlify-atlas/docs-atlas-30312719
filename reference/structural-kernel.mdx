@@ -1,7 +1,7 @@
 ---
-title: "Structural Kernel Reference: Primitives, Booleans, and Mappings"
+title: "A.D.A.M. Structural Kernel: Primitives, Booleans, Mappings"
 sidebarTitle: "Structural Kernel"
-description: "Complete reference for A.D.A.M.'s structural routing kernel — the primitives, boolean derivations, and kernel mappings that drive automatic mode selection and AUDIT triggering."
+description: "Reference for A.D.A.M.'s structural routing kernel: the primitives, booleans, and mappings that drive mode selection and AUDIT triggering."
 ---
 
 The structural kernel (section S) is the single source of truth for four routing outputs: `AUDIT_ON`, `DEEP_CANDIDATE`, `MINI_TABLE_TRIGGER`, and `RETROGRADE_HARD`. It operates purely on the structure of the current user message — structure beats wording, and booleans are computed fresh on every turn from the current message only. No structural result persists across turns unless a mapping explicitly depends on prior state (as with `prev_commit` in `NEW_CONSTRAINTS_AFTER_COMMIT`).

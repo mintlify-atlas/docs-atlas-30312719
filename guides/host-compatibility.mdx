@@ -1,7 +1,7 @@
 ---
 title: "Host Compatibility: Running A.D.A.M. on Any Chat Platform"
 sidebarTitle: "Host Compatibility"
-description: "A.D.A.M. requires a persistent instruction field that holds the full protocol file. Learn the requirements, known limits, and how to verify activation on any host."
+description: "A.D.A.M. needs a stable instruction surface to hold the full protocol file. Learn what the host must support, known limits, and how to verify activation."
 ---
 
 A.D.A.M. is a spec-first control protocol: the spec **is** the implementation. This means the protocol's behavior depends entirely on the host's ability to hold and apply the full `A.D.A.M.v5.txt` file as an active instruction set — not just as visible text, but as the governing behavioral contract for every reply in the session.
@@ -92,7 +92,7 @@ The `BOOTSTRAP_CLASS` value in the first ping output tells you how strongly the 
     Protocol operability passed, but no stable physical bind was established (either execution was not possible, or no physical bind could be proved). The protocol is still operable. `ADAM REMOUNT` is the recommended recovery path.
   </Card>
   <Card title="GHOST" icon="ghost">
-    Physical bootstrap ran but no sufficient classification basis remained. The protocol may still be partially operable. `ADAM REMOUNT` is the recovery path.
+    Physical bootstrap ran but no sufficient classification basis remained. `ADAM REMOUNT` is the recovery path.
   </Card>
 </CardGroup>
 

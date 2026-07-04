@@ -1,5 +1,5 @@
 ---
-title: "Bootstrap and BOOTSTRAP_CLASS in A.D.A.M."
+title: "A.D.A.M. Bootstrap: Boundary Check and BOOTSTRAP_CLASS"
 sidebarTitle: "Bootstrap"
 description: "How A.D.A.M. activates via ADAM PING, what the two-level bootstrap boundary check does, and what each BOOTSTRAP_CLASS value means for session reliability."
 ---
@@ -111,7 +111,7 @@ Physical bind established (`L2 = BOUND`, `L3 = PHYSICAL`, `L4 = INTACT`) and sou
 
 ### `GHOST`
 
-`G0` executed, but no sufficient classification basis remained to resolve as `TEXT_ONLY`, `BOUND_RO`, or `BOUND_RW`. This occurs when `AMBIENT` finds no usable bounded roots, or `L0 = NO`, or later internal outputs are inconsistent without yielding a stable non-physical class. `REMOUNT` is available.
+`G0` executed, but no sufficient classification basis remained to resolve as `TEXT_ONLY`, `BOUND_RO`, or `BOUND_RW`. This occurs when `AMBIENT` finds no usable bounded roots, `L0 = NO`, `L5 = FAILED` (which does not map to `BOUND_RO` and carries forward to `GHOST` unless fail-closed applies), or later internal outputs are inconsistent without yielding a stable non-physical class. `REMOUNT` is available.
 
 ## What BOOTSTRAP_CLASS Does Not Mean
 
@@ -137,4 +137,4 @@ MODE: MID
 ADAM_PING_OK
 ```
 
-`G0` does not re-run. Pending gating is not cleared. Overlay state is not reset. The session continues from exactly where it was.
+`G0` does not re-run. Pending gating is not cleared. Cached gating reference is not discarded. The next routed turn is not reset. Overlay state is not altered. The session continues from exactly where it was.

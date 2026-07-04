@@ -1,7 +1,7 @@
 ---
-title: "A.D.A.M. Terminology Lexicon"
+title: "A.D.A.M. Lexicon: Official Terminology and Canonical Forms"
 sidebarTitle: "Lexicon"
-description: "Official terminology for A.D.A.M. v5 — canonical forms, allowed variants, and terms to avoid. Use this lexicon when editing the protocol or documentation."
+description: "Official A.D.A.M. v5 terminology reference: canonical forms, allowed variants, and terms to avoid when writing spec, docs, or derivative materials."
 ---
 
 This lexicon is the single source of truth (SSOT) for terminology used across the A.D.A.M. v5 protocol, its documentation, and any derivative materials. When editing the spec, writing docs, or discussing protocol behavior, always use the official forms listed here. Consistent terminology keeps the protocol spec stable, unambiguous, and reviewable across the repository.
@@ -31,11 +31,17 @@ These are the terms you will encounter most often in the spec and in normal prot
 | BOUND_RW | `BOUND_RW` | — | `read-write bound` | Source-side physical bind established; source-side write/readback verified. |
 | GHOST | `GHOST` | — | `ghost mode` | Physical bootstrap ran, but no sufficient classification basis remained. |
 | PERSISTENCE_CLASS | `PERSISTENCE_CLASS` | — | `persist class` | Destination-side result of `ADAM PERSIST`; does not replace `BOOTSTRAP_CLASS`. |
+| SPEC_SIGNATURE | `SPEC_SIGNATURE: ADAM_V5_SPEC_SIG` | — | — | Canonical signature line for v5 identity. |
+| KERNEL_ANCHOR | `KERNEL_ANCHOR: ADAM_V5_SSOT_KERNEL` | — | — | Internal anchor used for identity and bounded discovery. |
+| KERNEL_END_ANCHOR | `KERNEL_END_ANCHOR: ADAM_V5_SSOT_KERNEL_END` | — | — | End anchor for integrity and identity. |
 | State Overlay | `State Overlay` | `state overlay` | `session phase` | Internal reasoning governor for long-session stability; not printed. |
+| STATE | `STATE` | `internal state` | `mode` | Overlay state variable: `EXPLORE / CONVERGE / DECIDE / VERIFY`; not printed. |
 | structural kernel | `structural kernel` | `kernel`, `section S` | `switch logic` | SSOT routing layer driven by input structure, not wording. |
+| structural triggers | `structural triggers` | — | `keyword triggers` | Non-semantic cues used for routing, gating, and audit. |
 | AUDIT footer | `` `AUDIT` `` footer | `AUDIT` block | `epistemics block` | Strict 4-line bounded audit block. |
 | ACTION / RISK / BASIS | `ACTION:` / `RISK:` / `BASIS:` | — | `A/R/V` | Canonical lines inside the `AUDIT` footer. |
 | DEEP gating | `Switch to DEEP? (yes/no)` | — | `deep prompt` | Exact last-line consent gate to enter `DEEP`. |
+| probes | `probes` | `diagnostics` | `drift probes` (as active surface) | In current public surface: `ADAM SELF TEST`, `SYS STATUS`, `TRACE INPUT`, `UNSUPPORTED WHY`. |
 | ADAM PING | `ADAM PING` | — | — | Canonical visible bootstrap trigger. In `TRANSPORT`: strict 4-line bootstrap output. In `ACTIVE`: strict 2-line liveness output. |
 | TRACE INPUT | `TRACE INPUT` | — | `RX receipt` | Strict forensic/operator input trace command. |
 | structural classification overlay | `TRACE INPUT:` overlay | `automatic overlay` | `RX receipt` | Automatic bounded structural overlay that may appear in `MODE: MID -> POSSIBLE DEEP` and `MODE: DEEP`. |
@@ -55,12 +61,18 @@ These terms describe runtime behavior, state transitions, and command matching r
 | Term | Official Form | Meaning |
 |---|---|---|
 | rule-ordered runtime | `rule-ordered runtime` | Explicit priority, parsing, and output rules constrain behavior, even though execution remains probabilistic. |
+| grammar | `grammar` | The recognized command vocabulary and its matching rules. |
 | exact match | `exact match` | Canonical command matching rule for strict commands and probes. |
+| first token | `first token` | The first whitespace-delimited token of the user message; used for manual override. |
+| canonical string | `canonical string` | Exact command phrases that must not be paraphrased. |
+| normalization | `normalization` | Limited trimming/case rules used for strict matching. |
 | priority order | `priority order` | `REMOUNT_REPLAY > TRANSPORT_GATE > OFF_GATE > ACTIVE_CONTROL_COMMANDS > MANUAL_OVERRIDE > STRUCTURAL_KERNEL > STATE_DEFAULT > OUTPUT_CONTRACT`. |
 | transport/activity state | `TRANSPORT / ACTIVE / OFF` | Public activity state machine for protocol activation and control. |
 | TRANSPORT | `TRANSPORT` | File present but not yet activated; only exact `ADAM PING` and exact remount replay are available. |
 | ACTIVE | `ACTIVE` | Protocol is active and normal routing applies. |
 | OFF | `OFF` | Protocol is temporarily off; `ADAM ON` is required to return to `ACTIVE`. |
+| state machine | `state machine` | Finite state model for `TRANSPORT / ACTIVE / OFF`, plus a separate internal reasoning overlay. |
+| event | `event` | Something that triggers a state transition, e.g. exact `ADAM PING`, `ADAM OFF`, `ADAM ON`, exact remount replay. |
 | liveness-only | `liveness-only` | Exact `ADAM PING` while already `ACTIVE`; confirms activity but does not rerun `G0`. |
 | fail-closed | `fail-closed` | If a strict invariant cannot be satisfied reliably, output only the strict fallback instead of approximating. |
 | invariants | `invariants` | Rules that must always hold: strict outputs, fail-closed behavior, bounded audit, exact gating line, and so on. |
@@ -99,6 +111,7 @@ These terms describe runtime behavior, state transitions, and command matching r
 | decision-complete | `decision-complete` | In `DECIDE / VERIFY`, ensure at least one meaningful guardrail exists unless mode/contract forbids it. |
 | comparison mini-table | `comparison mini-table` | Compact table for multi-option comparisons in `MID`. |
 | when to use what | `when to use what` | Short mapping from options to likely best-fit use case. |
+| dominant-only discipline | `dominant-only discipline` | Outside `DEEP`, keep risks/verification to dominant top-level signals instead of expanding into long audit prose. |
 | publish-boundary validation | `publish-boundary validation` | Draft → validate → rewrite once → fail-closed if strict invariants still fail. |
 | sparse local provenance | `Sparse Local Provenance` | C5 local signal layer for eligible DEEP blocks only. |
 
@@ -130,6 +143,7 @@ These terms describe runtime behavior, state transitions, and command matching r
 | system prompt host | `system prompt host` | A host that lets you load the protocol as active instructions. |
 | upload is transport only | `upload is transport only` | File presence does not count as activation. Exact `ADAM PING` is still required. |
 | local context | `local context` | The visible/mounted context the protocol can actually inspect. |
+| host artifacts | `host artifacts` | UI banners, wrappers, or formatting inserted by the host, outside protocol control. |
 | bootstrap boundary | `bootstrap boundary` | The bounded activation check run through exact `ADAM PING` in `TRANSPORT`. |
 | protocol operability check | `protocol operability check` | Level 1 visible-context check that runs before physical classification in `G0`. |
 | physical classification | `physical classification` | `G0` phase that determines public `BOOTSTRAP_CLASS` beyond `TEXT_ONLY`. |
@@ -144,12 +158,14 @@ These terms describe runtime behavior, state transitions, and command matching r
 |---|---|---|
 | ADAM_UNSUPPORTED | `ADAM_UNSUPPORTED` | Output-only fail-closed fallback when a strict invariant cannot be satisfied reliably. |
 | SOURCE_FILE_UNAVAILABLE | `SOURCE_FILE_UNAVAILABLE <FILENAME>` | Strict one-line fallback when an external source file is unavailable in current host context. |
+| strict output | `strict output` | A response format that must match exactly, with no extra prose or extra lines. |
 | ADAM_PING_OK | `ADAM_PING_OK` | Strict success line emitted by exact `ADAM PING`. |
 | ADAM_REMOUNT_OK | `ADAM_REMOUNT_OK` | Strict success line confirming exact remount replay and return to `ACTIVE`. |
 | ADAM_PERSIST_OK | `ADAM_PERSIST_OK` | Strict success line for `ADAM PERSIST` when a destination copy is written and classified. |
 | PERSIST_BLOCKED | `PERSIST_BLOCKED: ...` | Strict blocked output when source or destination gate prevents `ADAM PERSIST`. |
 | ADAM_PERSIST_FAIL | `ADAM_PERSIST_FAIL` | Strict failure output when persist write fails. |
 | ADAM REMOUNT | `ADAM REMOUNT` | Recovery command that emits the strict remount replay capsule. |
+| remount replay | `exact remount replay` | Exact replay of the emitted remount capsule body; re-enters `ACTIVE`. |
 | ADAM PERSIST | `ADAM PERSIST` | Deploy-and-verify command for a physical copy of the current protocol source. |
 | VERIFIED | `VERIFIED` | Destination copy written, re-opened, and matched to source. |
 | WRITTEN_ONLY | `WRITTEN_ONLY` | Destination write appears to have happened, but readback or strict verification is incomplete. |
