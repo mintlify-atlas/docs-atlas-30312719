@@ -1,0 +1,226 @@
+---
+title: "Core Commands: ADAM PING, REMOUNT, PERSIST, OFF, ON"
+sidebarTitle: "Core Commands"
+description: "Complete reference for A.D.A.M.'s five public core commands — ADAM PING, ADAM REMOUNT, ADAM PERSIST, ADAM OFF, and ADAM ON — with exact syntax and output contracts."
+---
+
+Core commands are the five public control commands that govern A.D.A.M.'s activation, recovery, persistence, and on/off state. Each command is an **exact-match, case-sensitive, full-message command** — the entire message must be the command string after trimming, with no additional text before or after it. They are available while the protocol is ACTIVE unless a specific state exception is noted below.
+
+---
+
+## ADAM PING
+
+```text
+ADAM PING
+```
+
+**Availability:** TRANSPORT, ACTIVE
+
+`ADAM PING` is the sole canonical visible bootstrap trigger for A.D.A.M. Its behavior depends on the current transport/activity state.
+
+### In TRANSPORT
+
+Sending `ADAM PING` from TRANSPORT first runs the protocol operability check (`G0.pre`) on the visible context, then runs `G0` physical classification to determine `BOOTSTRAP_CLASS`. If the protocol operability check fails at any point, the reply is only `ADAM_UNSUPPORTED`.
+
+<Note>
+  `BOOTSTRAP_CLASS` is source-side only. It records what the protocol could verify about its physical source during activation — it does not describe destination durability or cross-turn persistence.
+</Note>
+
+**Exact TRANSPORT output (4 lines):**
+
+```text
+MODE: MID
+ADAM_PING_OK
+CONTROL: first word LOW | MID | DEEP sets mode.
+BOOTSTRAP_CLASS: <TEXT_ONLY|BOUND_RO|BOUND_RW|GHOST>
+```
+
+The four `BOOTSTRAP_CLASS` values and what they mean:
+
+| Class | Meaning |
+|---|---|
+| `TEXT_ONLY` | Protocol operable but execution not tentable, or no stable physical bind proved. |
+| `BOUND_RO` | Physical bind established; source-side read-only. |
+| `BOUND_RW` | Physical bind established; source-side write/readback verified. |
+| `GHOST` | Physical bootstrap ran but no sufficient classification basis remained. |
+
+After a successful TRANSPORT → ACTIVE transition, pre-handshake transport context is cleared, pending gating is cleared, and the next routed turn resets to fresh handling.
+
+### In ACTIVE
+
+`ADAM PING` while already ACTIVE is a **liveness-only** check. `G0` does **not** re-run. Pending gating is not cleared, cached gating references are not discarded, and overlay state is not altered.
+
+**Exact ACTIVE output (2 lines):**
+
+```text
+MODE: MID
+ADAM_PING_OK
+```
+
+### In OFF
+
+While OFF, `ADAM PING` returns the OFF gate output and does not reactivate the protocol.
+
+**Exact OFF output (2 lines):**
+
+```text
+MODE: MID
+A.D.A.M. off.
+```
+
+<Warning>
+  Sending `ADAM PING` while OFF does **not** reactivate the protocol. Use `ADAM ON` to return to ACTIVE from OFF.
+</Warning>
+
+---
+
+## ADAM REMOUNT
+
+```text
+ADAM REMOUNT
+```
+
+**Availability:** ACTIVE
+
+`ADAM REMOUNT` emits the recovery replay capsule — a fixed block of text that, when pasted back verbatim as an entire message, re-enters ACTIVE from any state (TRANSPORT, ACTIVE, or OFF). No mode tag is included in the output.
+
+**Output:** The exact remount capsule body, delimited by `REMOUNT_BEGIN` and `REMOUNT_END`. The capsule contains the identity anchors, priority ladder, and replay matching rules needed for recovery.
+
+<Note>
+  Only the **exact remount capsule body** re-enters ACTIVE when replayed. Capsules using pre-v5 identity literals are no longer valid — regenerate via `ADAM REMOUNT` in an active session before you need it.
+</Note>
+
+For full instructions on when and how to use the remount capsule, see the Recovery and Remount guide.
+
+---
+
+## ADAM PERSIST
+
+```text
+ADAM PERSIST
+```
+
+**Availability:** ACTIVE — only when `BOOTSTRAP_CLASS` is `BOUND_RO` or `BOUND_RW`
+
+`ADAM PERSIST` deploys a verified physical copy of the current protocol source to the best verified local destination. It is not a bootstrap command and does not replace `ADAM REMOUNT`. It does not change `BOOTSTRAP_CLASS`.
+
+### Source gate
+
+Before any destination work begins, the source conditions are checked:
+
+- `BOOTSTRAP_CLASS` must be `BOUND_RO` or `BOUND_RW`
+- Internal source fingerprint must be `INTACT`
+
+If source conditions are not met, the command is blocked immediately.
+
+### Success output (4 lines)
+
+```text
+MODE: MID
+ADAM_PERSIST_OK
+PATH: <destination path>
+PERSISTENCE_CLASS: VERIFIED|WRITTEN_ONLY|MISMATCH
+```
+
+### Blocked output (2 lines)
+
+```text
+MODE: MID
+PERSIST_BLOCKED: SOURCE_UNSAFE
+```
+
+Or, if destination discovery fails:
+
+```text
+MODE: MID
+PERSIST_BLOCKED: NO_DEST
+```
+
+Or, if destination selection is ambiguous:
+
+```text
+MODE: MID
+PERSIST_BLOCKED: AMBIGUOUS_DEST
+```
+
+### Write failure output (2 lines)
+
+```text
+MODE: MID
+ADAM_PERSIST_FAIL
+```
+
+### PERSISTENCE_CLASS values
+
+`PERSISTENCE_CLASS` is a **destination-side** result only. It does not replace or modify `BOOTSTRAP_CLASS`.
+
+| Class | Meaning |
+|---|---|
+| `VERIFIED` | Copy written, re-opened from disk, and matched to source fingerprint. |
+| `WRITTEN_ONLY` | Copy appears to have been written, but readback or strict verification was incomplete. |
+| `MISMATCH` | Copy written and re-opened, but destination does not match source. |
+
+<Warning>
+  `WRITTEN_ONLY` must **never** be treated as `VERIFIED`. Physical confirmation is incomplete when this class is returned.
+</Warning>
+
+<Note>
+  `ADAM REMOUNT` remains the universal recovery entry point even when `PERSISTENCE_CLASS` is `VERIFIED`. Do not treat `ADAM PERSIST` as a substitute for remount-based recovery.
+</Note>
+
+---
+
+## ADAM OFF
+
+```text
+ADAM OFF
+```
+
+**Availability:** ACTIVE, OFF
+
+`ADAM OFF` deactivates the protocol and transitions state to OFF. While OFF, normal chat continues without A.D.A.M. mode tags or routing. All commands except `ADAM ON` return the OFF gate output.
+
+**Exact output (2 lines):**
+
+```text
+MODE: MID
+A.D.A.M. off.
+```
+
+`ADAM OFF` is **idempotent**: sending it while already OFF returns the same 2-line output without further state change.
+
+---
+
+## ADAM ON
+
+```text
+ADAM ON
+```
+
+**Availability:** OFF, ACTIVE
+
+`ADAM ON` reactivates the protocol, transitioning state from OFF → ACTIVE.
+
+**Exact output (2 lines):**
+
+```text
+MODE: MID
+A.D.A.M. on.
+```
+
+`ADAM ON` is **idempotent**: sending it while already ACTIVE returns the same 2-line output without further state change.
+
+---
+
+## Command matching rules
+
+A.D.A.M. uses strict, unforgiving command matching. There are no shortcuts.
+
+- **Case-sensitive:** `adam ping` does not activate the protocol. The exact string `ADAM PING` is required.
+- **Exact full-message match after trim:** No trailing text is allowed. A message of `ADAM PING liveness?` is not a valid command.
+- **No aliases:** There are no shorthand variants. `PING`, `OFF`, or `ON` alone are not recognized as commands.
+- **Command phrase starts at character 1:** The command string must start at the very beginning of the message (after trimming).
+
+<Tip>
+  Manual overrides (`LOW`, `MID`, `DEEP`) are the only controls that may be followed by trailing text. All core commands and operator commands require the full message to be exactly the command string — nothing more.
+</Tip>

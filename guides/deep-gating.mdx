@@ -1,0 +1,121 @@
+---
+title: "Using DEEP Mode: Gating, Consent, and Override"
+sidebarTitle: "DEEP Gating"
+description: "DEEP mode is consent-gated in A.D.A.M. Learn how automatic DEEP candidacy detection works, how to respond to gating prompts, and when to use manual override."
+---
+
+A.D.A.M. has three response modes: `LOW`, `MID`, and `DEEP`. The first two are entered automatically based on the shape of your request. `DEEP` is different — it is **consent-gated**, meaning A.D.A.M. will not enter it without either an explicit `yes` response to a gating question, or a manual override using the `DEEP` prefix.
+
+This page explains why `DEEP` is gated, how automatic detection works, what the gating flow looks like in practice, and when to bypass gating entirely.
+
+## Why DEEP Is Gated
+
+`DEEP` mode produces full decision support: explicit assumptions, multi-option comparisons, failure modes, stress tests, and an `AUDIT` footer on every reply. That output is more expensive, more structured, and often not necessary — especially when a well-framed `MID` answer would resolve the question cleanly.
+
+Rather than enter `DEEP` automatically whenever a request seems important, A.D.A.M. offers it as an upgrade. You get a useful `MID`-level answer first, and then a single-line consent question. This keeps the default interaction efficient while making full decision support available on demand.
+
+<Note>
+`MODE: MID -> POSSIBLE DEEP` always includes a **complete, useful MID-level answer**. It is not a blocker or a holding state — it is an offer to go deeper. You can take the answer as-is and move on, or reply `yes` to get the full `DEEP` pass.
+</Note>
+
+## How DEEP Candidacy Is Detected
+
+A.D.A.M. does not route to `DEEP` by detecting "important" or "complex" topics semantically. High-stakes phrasing, emotional weight, or topic sensitivity alone does **not** trigger `DEEP`. The routing kernel operates on **message structure only**.
+
+The structural kernel computes a boolean called `DEEP_CANDIDATE`. It is true when:
+
+**Structural shape condition** — at least one of:
+- 2 or more line-start option blocks (e.g. `A)`, `B)`, `1)`, `2)`)
+- A step or timeline block (3+ numbered step lines, or 2+ date/time patterns)
+- 3 or more inline parenthetical alternatives
+
+**AND a complexity condition** — at least one of:
+- A number, digit range, comparator, or percentage
+- 3 or more criteria items (line-start `-` or `*`)
+- A `RETROGRADE_HARD` condition (new constraints introduced after a prior `COMMIT`)
+
+Both conditions must be met. Neither alone is sufficient. A message with three bullet points but no numbers or options will not trigger `DEEP`. A message with numbers but only one option block will not trigger `DEEP`.
+
+If you need `DEEP` for a request that doesn't meet these structural thresholds, use the manual override described below.
+
+## The Gating Flow
+
+<Steps>
+  <Step title="A.D.A.M. detects DEEP candidacy">
+    On a turn where `DEEP_CANDIDATE` is true, A.D.A.M. replies with `MODE: MID -> POSSIBLE DEEP` as the first line, followed immediately by an automatic structural classification overlay showing which structural triggers were detected.
+  </Step>
+  <Step title="Read the MID answer">
+    The body of the reply is a complete, useful MID-level answer. It also includes, when justified, at most one risk and one verification basis. You can act on this answer directly without going deeper.
+  </Step>
+  <Step title="Respond to the gating line">
+    The final line of every `MODE: MID -> POSSIBLE DEEP` reply is always exactly:
+    ```text
+    Switch to DEEP? (yes/no)
+    ```
+    This line is always last. Nothing follows it.
+  </Step>
+  <Step title="Reply yes to enter DEEP">
+    If you reply with exactly `yes` (case-sensitive, nothing else), A.D.A.M. enters `DEEP` mode and produces a full decision-support reply. The reply language matches the preceding `MID -> POSSIBLE DEEP` reply — `yes` alone does not reset the language.
+  </Step>
+  <Step title="Reply no to continue normally">
+    If you reply with exactly `no`, the gating reference is discarded and A.D.A.M. continues normally on the next turn.
+  </Step>
+  <Step title="Any other reply is treated as no">
+    If you reply with anything other than exact `yes` or exact `no`, A.D.A.M. treats it as `no`, discards the gating reference, and continues in auto-routing mode. The gating question is **not** repeated unless a new `DEEP_CANDIDATE` turn occurs.
+  </Step>
+</Steps>
+
+## The Anti-Loop Rule
+
+After a non-`yes`/non-`no` reply discards a pending gate, gating is gone. A later standalone `yes` with no active pending gate is **orphaned** — it does not enter `DEEP`. It is treated as a normal message.
+
+This prevents accidental `DEEP` entries from stray `yes` replies in a longer conversation. A new `DEEP` candidate turn must occur to establish a new pending gate.
+
+## Pending Gating Survives a Liveness Ping
+
+If gating is pending — meaning the last reply was `MODE: MID -> POSSIBLE DEEP` and you haven't yet replied `yes` or `no` — and you send `ADAM PING` (the liveness check), the pending gate is **preserved**. A.D.A.M. outputs the 2-line liveness reply without consuming the gate, and a subsequent `yes` will still enter `DEEP`.
+
+This is intentional. Liveness pings are state-neutral and do not alter overlay state or pending gating.
+
+## Manual Override: Skipping Gating Entirely
+
+<Tip>
+If you already know your request is structurally complex and you want full decision support immediately, start your message with `DEEP` followed by a space. This bypasses the gating flow entirely and enters `DEEP` mode directly — no consent question required.
+</Tip>
+
+The `DEEP` manual override is prefix-based. Your message starts with the token `DEEP`, followed by a space and your request content. The token must be the first word of the message, and the boundary after it must be whitespace (not punctuation).
+
+**Valid:**
+```text
+DEEP compare options A, B, and C on reliability and cost
+   1) PostgreSQL
+   2) MySQL
+   3) SQLite
+   Budget: under $200/month
+   Needs: uptime >= 99.9%, easy backups, managed service
+```
+
+**Invalid** (comma after `DEEP` breaks boundary):
+```text
+DEEP, compare these three options
+```
+
+When using `DEEP` manual override, the structural classification overlay is applied to your message content (after stripping the leading `DEEP` token) and `DEEP` mode proceeds immediately with the full output contract: explicit assumptions, comparisons, failure modes, stress tests, and the `AUDIT` footer.
+
+## Gating and Language
+
+A.D.A.M. mirrors the user's language in normal replies (section B1). If gating occurs in a non-English reply — for example, a `MODE: MID -> POSSIBLE DEEP` reply in Italian — and you reply `yes`, the subsequent `DEEP` reply will also be in Italian. The word `yes` is the exact control acknowledgement, and it alone does not reset the reply language.
+
+The structural classification overlay chips in `MODE: MID -> POSSIBLE DEEP` and `MODE: DEEP` are also localized to match the reply language when applicable.
+
+## DEEP Output: What to Expect
+
+Once in `DEEP`, A.D.A.M. produces a full decision-support reply. This always includes:
+
+- Explicit assumptions surfaced in the body
+- Comparisons and alternatives where relevant
+- Failure modes and stress tests
+- An `AUDIT` footer (always `ON` in `DEEP`) with `ACTION:`, `RISK:`, and `BASIS:` lines
+- Eligible top-level blocks may carry a local provenance signal (`infer`, `depends:`, etc.)
+
+See [Understanding A.D.A.M.'s AUDIT Footer](/guides/audit-footer) for a full breakdown of the `AUDIT` block format and field meanings.

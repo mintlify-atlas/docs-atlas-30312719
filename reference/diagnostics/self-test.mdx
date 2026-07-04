@@ -1,0 +1,104 @@
+---
+title: "ADAM SELF TEST: Behavioral Contract Verification"
+sidebarTitle: "Self Test"
+description: "Run ADAM SELF TEST to execute A.D.A.M.'s external self-test probe and verify the host is satisfying all behavioral output contracts."
+---
+
+`ADAM SELF TEST` is an operator-grade command that runs the external probe file `ADAM_SELF_TEST.md` against the current host. Its purpose is to verify that every output contract, gating rule, state transition, and strict command format is being satisfied correctly — not just that A.D.A.M. appears to be working, but that it is working precisely.
+
+<Note>
+  Diagnostics are not required for normal operation. They are operator-grade verification tools intended for use when loading A.D.A.M. on a new host, after a suspected context degradation, or any time you need to audit behavioral fidelity against the spec.
+</Note>
+
+## What it does
+
+When you send `ADAM SELF TEST`, A.D.A.M. looks for `ADAM_SELF_TEST.md` in visible local context and runs every test case defined there. Each test is evaluated against the behavioral output contracts in the active spec.
+
+If the probe file is unavailable, A.D.A.M. outputs exactly:
+
+```text
+SOURCE_FILE_UNAVAILABLE ADAM_SELF_TEST.md
+```
+
+## Output format
+
+The output is one line per test case, in the form:
+
+```text
+T#: <expected> - <PASS|FAIL>
+```
+
+If a test has a required element (such as an exact final line), the suffix `, required: ...` is appended:
+
+```text
+T7: MODE: MID -> POSSIBLE DEEP - PASS, required: final line Switch to DEEP? (yes/no)
+```
+
+**No mode tag. No prose. No extra lines.** Strict output contract applies.
+
+### Sample output
+
+```text
+T3: MODE: MID | ADAM_PING_OK | CONTROL: ... | BOOTSTRAP_CLASS: ... - PASS
+T5: MODE: LOW - PASS
+T7: MODE: MID -> POSSIBLE DEEP - PASS, required: final line Switch to DEEP? (yes/no)
+T13: MODE: LOW - PASS
+```
+
+## Test categories
+
+The probe defines three broad groups of test cases.
+
+<CardGroup cols={1}>
+  <Card title="TI — Internal correctness tests (T0–T25g)" icon="flask">
+    These tests verify that A.D.A.M.'s own behavioral rules are satisfied correctly on the current host. They cover:
+
+    - **Bootstrap activation** — `ADAM PING` in `TRANSPORT` produces the exact 4-line strict output including `BOOTSTRAP_CLASS`; the correct class is selected based on physical evidence from `G0`; fail-closed to `ADAM_UNSUPPORTED` when required.
+    - **Transport gating** — Every non-activation turn in `TRANSPORT` returns the exact 2-line transport response. Upload-only passive turns emit no output and leave state in `TRANSPORT`.
+    - **Mode routing** — Factoid turns route to `LOW`; standard explanation turns route to `MID`; structural DEEP candidates route to `MODE: MID -> POSSIBLE DEEP`.
+    - **Gating flow** — Exact `yes` enters `DEEP`; exact `no` discards the cached reference; any other reply treats gating as `no` and does not repeat the gate automatically (anti-loop). Pending gating survives an `ACTIVE` liveness ping.
+    - **Manual override** — `LOW`, `MID`, and `DEEP` as the first token (with boundary whitespace or end) force the indicated mode. `MID, ...` (with comma) is not a valid override.
+    - **No-inertia** — Every turn recomputes mode independently. A factoid question after a `DEEP` reply routes to `LOW`.
+    - **Retrograde invalidation** — If a prior explicit `COMMIT` is followed by structural constraints that break a required premise, the old `COMMIT` is explicitly invalidated rather than silently carried over.
+    - **AUDIT grounding** — `ACTION:`, `RISK:`, and `BASIS:` are grounded against the reply body. Lines that cannot be grounded use `-`.
+    - **Remount replay** — Exact replay of the `REMOUNT_BEGIN...REMOUNT_END` capsule body from any state produces the strict 3-line `ADAM_REMOUNT_OK` output. Capsules with markdown fences, extra lines, partial content, or internal drift do not match.
+    - **OFF / ON state** — `ADAM OFF` and `ADAM ON` produce exact 2-line strict outputs. Normal chat while `OFF` is plain, untagged. `ADAM_REMOUNT_OK` is not emitted by any path other than exact remount replay.
+    - **Probe file handling** — `SYS STATUS` with no `SYS_STATUS.md` available outputs `SOURCE_FILE_UNAVAILABLE SYS_STATUS.md`.
+    - **`TRACE INPUT` output** — Exact `TRACE INPUT` while `ACTIVE` returns a strict one-line machine-readable trace bound to the prior user-authored turn, not to the `TRACE INPUT` command turn itself.
+  </Card>
+
+  <Card title="TH — Host resilience tests (TH1–TH8)" icon="shield">
+    These tests probe host-side edge cases that can degrade protocol fidelity:
+
+    - **Truncated protocol context** — If visible protocol context is incomplete before a section required for a strict invariant, A.D.A.M. fails closed to `ADAM_UNSUPPORTED`.
+    - **Gating survival across liveness ping** — Pending gating is preserved when an `ADAM PING` is received while `ACTIVE`; the liveness ping does not clear it.
+    - **Remount edge cases** — Per-line edge whitespace is tolerated. Partial capsules (missing `REMOUNT_END`, missing internal lines), capsules with internal drift (sentinels intact but one internal line changed), and capsules with extra lines outside the sentinels all fail to match.
+    - **Empty turns in `TRANSPORT`** — An empty or whitespace-only turn while in `TRANSPORT` returns the standard 2-line transport response.
+    - **Apparent continuity** — Prior tagged replies, reassurance prose, or a conversation that looks active does not establish `ACTIVE`. Only exact activation events count.
+  </Card>
+
+  <Card title="TP — Automatic TRACE INPUT human projection tests (TP1–TP9)" icon="eye">
+    These tests verify the behavior of the automatic structural classification overlay — the `TRACE INPUT:` chip line that appears automatically in `MODE: MID -> POSSIBLE DEEP` and some `DEEP` replies:
+
+    - **Overlay appearance** — The overlay appears as the second line (immediately after the mode tag) in `MODE: MID -> POSSIBLE DEEP` replies when a structural threshold is met.
+    - **Overlay omission in various DEEP entry paths** — After exact `yes` to gating, after manual `DEEP` with no trailing content, and after one-turn inheritance under F9, no automatic overlay is emitted.
+    - **Zero-structure omission** — If the selected source turn yields `struct=[opt:0 step:0 crit:0 num:N]`, the overlay is omitted entirely. Thresholds for `crit` and `step` require 3+, not 2.
+    - **Threshold matching** — Each chip (`[confronto tra opzioni]`, `[vincoli da rispettare]`, `[numeri, date o limiti]`, `[passi o ordine]`) appears only when its corresponding field meets the threshold.
+    - **Independence from strict `TRACE INPUT`** — The automatic overlay is presentation-only. It does not imply that the operator command `TRACE INPUT` was explicitly invoked. Sending exact `TRACE INPUT` still returns the strict machine-readable one-line output unchanged.
+  </Card>
+</CardGroup>
+
+## When to use it
+
+<Tip>
+  Run `ADAM SELF TEST` after loading A.D.A.M. on a new host or chat UI to confirm the host is correctly honoring A.D.A.M.'s output contracts before relying on it for operational work.
+</Tip>
+
+Typical use cases:
+
+- After initial loading on a host you haven't used before
+- After a session interruption or suspected context degradation
+- When debugging unexpected mode routing, missing AUDIT footers, or gating failures
+- When comparing behavioral fidelity across different hosts or model versions
+
+`ADAM SELF TEST` is an operator command available only while `ACTIVE`. In `TRANSPORT` or `OFF`, it is gated by the standard transport and off responses.

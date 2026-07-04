@@ -1,0 +1,99 @@
+---
+title: "Session Recovery with ADAM REMOUNT"
+sidebarTitle: "Recovery and Remount"
+description: "After context loss or session interruption, use ADAM REMOUNT to generate a recovery capsule and replay it to restore A.D.A.M. to ACTIVE state from any prior state."
+---
+
+A.D.A.M. does not persist state across chat sessions. Every new session begins in `TRANSPORT` state, and the full `A.D.A.M.v5.txt` file must be present in the host's instruction field for the protocol to operate. If a session is interrupted, the context window is truncated, or the host resets its state, the protocol will not silently degrade — it will either fail-closed or revert to `TRANSPORT`.
+
+`ADAM REMOUNT` is the recovery mechanism designed for exactly this situation. It generates a compact recovery capsule that can be pasted into a new session to restore `ACTIVE` state without reloading the full protocol file.
+
+## Why Recovery Is Needed
+
+A.D.A.M.'s state machine tracks three transport/activity states: `TRANSPORT`, `ACTIVE`, and `OFF`. Activation requires an explicit event — either an exact `ADAM PING` in `TRANSPORT`, or an exact remount replay. Without one of these events, the protocol stays in `TRANSPORT` regardless of how much conversation has happened.
+
+Context loss (host truncation, session timeout, or a window refresh) can silently drop the protocol from active context. Rather than continuing as if nothing changed, A.D.A.M. will fail-closed or return to `TRANSPORT`. The remount capsule provides a minimal recovery path that does not require re-loading the full spec file.
+
+## The Remount Capsule
+
+`ADAM REMOUNT`, sent while `ACTIVE`, outputs a strict recovery capsule delimited by `REMOUNT_BEGIN` and `REMOUNT_END`. This capsule encodes the minimum protocol identity information needed to restore `ACTIVE` state. Replaying it exactly — in a new session or after context loss — triggers the `REMOUNT_REPLAY_DETECTED` path, which has the highest priority in A.D.A.M.'s routing ladder.
+
+The capsule holds no user-specific state, no conversation history, and no session data. It is a minimal protocol identity anchor, not a session snapshot.
+
+## How to Remount
+
+<Steps>
+  <Step title="Generate the capsule while ACTIVE">
+    Send the exact command `ADAM REMOUNT` during an active session. A.D.A.M. outputs the full remount capsule block, beginning with `REMOUNT_BEGIN` and ending with `REMOUNT_END`.
+  </Step>
+  <Step title="Copy the capsule body">
+    Copy the entire capsule text, including the `REMOUNT_BEGIN` and `REMOUNT_END` sentinel lines. The capsule body is the complete replay text.
+
+    <Warning>
+    Do **not** include any markdown code fences in what you paste. If the host renders the capsule inside a code block (with triple backticks), paste only the lines between the fences — starting with `REMOUNT_BEGIN` and ending with `REMOUNT_END`. The code fences are presentation-only and are not part of the replay text. Including them will cause the replay to fail.
+    </Warning>
+  </Step>
+  <Step title="Open the new session">
+    Start a new chat session on the same host (or any compatible host with `A.D.A.M.v5.txt` in the instruction field), or continue after a context disruption in the current session.
+  </Step>
+  <Step title="Paste the capsule as your message">
+    Paste the exact capsule body — from `REMOUNT_BEGIN` through `REMOUNT_END`, inclusive — as your complete message. The replay match requires the **exact full line sequence** after trimming leading and trailing whitespace on each line.
+  </Step>
+  <Step title="Receive ADAM_REMOUNT_OK">
+    A.D.A.M. recognizes the remount replay and replies with exactly:
+    ```text
+    MODE: MID
+    ADAM_REMOUNT_OK
+    NEXT: send your question.
+    ```
+    You are now `ACTIVE`. No `BOOTSTRAP_CLASS` line is emitted — remount is recovery, not bootstrap.
+  </Step>
+  <Step title="Resume normal use">
+    Send your question. A.D.A.M. will route it normally as if the session had been continuous.
+  </Step>
+</Steps>
+
+<Tip>
+At the start of any long or important session, send `ADAM REMOUNT` immediately after activation and save the capsule somewhere accessible (a notes app, a scratch file, a clipboard manager). If the session is interrupted hours later, you can recover without re-loading the full protocol file.
+</Tip>
+
+## What the Remount Capsule Looks Like
+
+```text
+REMOUNT_BEGIN
+SYSTEM: A.D.A.M. - Adaptive Depth & Mode (REMOUNT CORE)
+SPEC_SIGNATURE: ADAM_V5_SPEC_SIG
+KERNEL_ANCHOR: ADAM_V5_SSOT_KERNEL
+KERNEL_END_ANCHOR: ADAM_V5_SSOT_KERNEL_END
+
+PRIORITY: REMOUNT_REPLAY > TRANSPORT_GATE > OFF_GATE > ACTIVE_CONTROL_COMMANDS > MANUAL_OVERRIDE > STRUCTURAL_KERNEL > STATE_DEFAULT > OUTPUT_CONTRACT
+TAGS: MODE: LOW | MODE: MID | MODE: DEEP | MODE: MID -> POSSIBLE DEEP
+BOOTSTRAP: upload is transport only; exact ADAM PING from TRANSPORT -> ADAM_PING_OK
+REPLAY_EFFECT: exact replay of this capsule body -> ADAM_REMOUNT_OK and ACTIVE
+REPLAY_MATCH: exact full line sequence from REMOUNT_BEGIN through REMOUNT_END, inclusive, after trimming leading and trailing whitespace on each line
+COMMAND_MATCH: case-sensitive; exact full trimmed message for commands/probes; no aliases; manual overrides are prefix-only
+DEEP: only after explicit yes to gating or manual override DEEP
+GATING: if POSSIBLE DEEP -> last line exactly: Switch to DEEP? (yes/no)
+AUDIT: if AUDIT_ON -> exact 4-line AUDIT with grounded ACTION:/RISK:/BASIS: or `-`; immediately before the final gating line if present, otherwise as the final block of the reply.
+FAIL_CLOSED: if strict invariants cannot be satisfied reliably -> ADAM_UNSUPPORTED
+REMOUNT_END
+```
+
+## Important Rules
+
+| Rule | Detail |
+|---|---|
+| **No BOOTSTRAP_CLASS line** | Remount does not emit a `BOOTSTRAP_CLASS` line. It is recovery, not a full bootstrap. |
+| **Works from any state** | Remount replay works from `TRANSPORT`, `ACTIVE`, or `OFF` — there is no prerequisite state. |
+| **No markdown fences** | Paste only the lines between and including the sentinels. Code fences are not part of the replay text. |
+| **Exact match required** | Partial capsule, extra lines before `REMOUNT_BEGIN`, or extra lines after `REMOUNT_END` will cause the replay not to be detected. |
+| **Per-line whitespace trimming** | Leading and trailing whitespace on each individual line is tolerated; blank lines within the capsule are preserved as-is. |
+| **Pre-v5 capsules are invalid** | Capsules from earlier versions of A.D.A.M. use different identity literals and are no longer valid. Regenerate with the current `ADAM REMOUNT` command. |
+
+## When Remount Is Not Enough
+
+If the full `A.D.A.M.v5.txt` is no longer in context — for example, if the host dropped the instruction field or you started a fresh session on a new device without loading the protocol — remount replay alone may not be sufficient to establish a fully operational session. The remount capsule restores `ACTIVE` state, but the protocol's behavioral rules still depend on the spec file being in the instruction context.
+
+In that case, reload `A.D.A.M.v5.txt` into the instruction field and use `ADAM PING` for a full bootstrap.
+
+For sessions where stronger recovery substrate matters, use `ADAM PERSIST` after activation. When `BOOTSTRAP_CLASS` is `BOUND_RO` or `BOUND_RW`, `ADAM PERSIST` deploys a verified physical copy of the protocol source to the best available local destination. This does not replace `ADAM REMOUNT` — remount remains the universal recovery entry point — but it provides an additional layer of durability for long or critical sessions.

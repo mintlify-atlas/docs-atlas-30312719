@@ -1,0 +1,249 @@
+---
+title: "LOW, MID, and DEEP: A.D.A.M.'s Response Modes"
+sidebarTitle: "Modes"
+description: "A.D.A.M. routes every reply into one of three depth modes. Learn what each mode produces, when it activates, and how to force a specific mode manually."
+---
+
+A.D.A.M. routes every non-strict reply into one of four mode states. Each state controls output depth, structure, and whether an AUDIT footer is required. The mode tag is always the first line of a normal reply while ACTIVE.
+
+## The four mode tags
+
+| Tag | When it appears | What it signals |
+|---|---|---|
+| `MODE: LOW` | Factoids, brief definitions, trivial calculations, banter | Fast, minimal, direct. No needless structure. |
+| `MODE: MID` | Explanations, evaluations, moderate comparisons | Default rigorous mode. Compact structure only when it improves correctness. |
+| `MODE: MID -> POSSIBLE DEEP` | Structural complexity detected; DEEP may be warranted | MID-level answer is already useful. Consent required before entering DEEP. |
+| `MODE: DEEP` | After exact `yes` to gating, or manual override `DEEP` | Full decision support. AUDIT is always ON. Comparisons, failure modes, and stress tests. |
+
+---
+
+## MODE: LOW
+
+LOW is the fast lane. It activates when the request is a factoid, a brief definition, a trivial calculation, a micro-procedure, or casual banter where no analytical demand exists.
+
+**What LOW produces:**
+- A direct, minimal answer
+- No needless structure — no headers, no bullet lists unless the content genuinely requires them
+- No follow-up question unless the answer materially depends on it
+
+**Example triggers:** *What is the capital of France? / How many bytes in a kilobyte? / What does "idempotent" mean? / Thanks, that works.*
+
+<Tabs>
+  <Tab title="Example interaction">
+    **User:**
+    ```text
+    what is the capital of France
+    ```
+
+    **A.D.A.M.:**
+    ```text
+    MODE: LOW
+    Paris.
+    ```
+  </Tab>
+  <Tab title="Another example">
+    **User:**
+    ```text
+    how many seconds in a day
+    ```
+
+    **A.D.A.M.:**
+    ```text
+    MODE: LOW
+    86,400.
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## MODE: MID
+
+MID is the default rigorous mode. It activates for explanations, evaluations, pros/cons comparisons, and requests that need moderate structure or analytical depth — but not the full decision-support apparatus of DEEP.
+
+**What MID produces:**
+- A compact, well-structured answer
+- Structure (headers, bullets, tables) only when it improves correctness or decision quality
+- If `MINI_TABLE_TRIGGER` is true: a small comparison mini-table and a short "when to use what" conclusion
+
+`MINI_TABLE_TRIGGER` fires when the message contains 3+ line-start option blocks, or 2+ option blocks combined with numbers or 3+ criteria items. See [Routing](/concepts/routing) for the full structural kernel.
+
+<Tabs>
+  <Tab title="Standard MID">
+    **User:**
+    ```text
+    MID explain the pros and cons of SSDs vs HDDs
+    ```
+
+    **A.D.A.M.:**
+    ```text
+    MODE: MID
+
+    SSDs are faster, quieter, and more shock-resistant. HDDs offer
+    higher storage density at lower cost per gigabyte.
+
+    | Dimension      | SSD              | HDD              |
+    |----------------|------------------|------------------|
+    | Speed          | Very fast        | Slower           |
+    | Cost/GB        | Higher           | Lower            |
+    | Durability     | No moving parts  | Mechanical wear  |
+    | Noise          | Silent           | Audible spin     |
+
+    When to use what: SSD for OS and active workloads; HDD for
+    bulk storage and archival where cost matters more than latency.
+    ```
+  </Tab>
+  <Tab title="MID without table">
+    **User:**
+    ```text
+    explain what a hash function does
+    ```
+
+    **A.D.A.M.:**
+    ```text
+    MODE: MID
+
+    A hash function maps arbitrary input data to a fixed-size output
+    (the "hash" or "digest"). The same input always produces the same
+    output. Small changes to input produce large changes to output
+    (avalanche effect). A good hash function is fast to compute and
+    practically irreversible: you cannot recover the original input
+    from the hash alone.
+
+    Common uses: checksums, password storage, data deduplication,
+    and hash tables.
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## MODE: MID → POSSIBLE DEEP
+
+This mode signals that the structural complexity of the message crosses the `DEEP_CANDIDATE` threshold, but A.D.A.M. does not enter DEEP automatically — it asks first.
+
+**What MID → POSSIBLE DEEP produces:**
+- A fully useful MID-level answer on its own
+- One short operational line about what can be done now
+- At most one risk and one verification basis in the answer body (when justified)
+- The exact final line: `Switch to DEEP? (yes/no)`
+
+If you reply exactly `yes`, A.D.A.M. enters DEEP. Any other reply — including `no` — discards the pending gate and continues normally.
+
+<Tabs>
+  <Tab title="Example interaction">
+    **User:**
+    ```text
+    compare these options:
+    A) PostgreSQL
+    B) MySQL
+    C) SQLite
+
+    criteria:
+    - must support concurrent writes
+    - must run on a VPS with 1 GB RAM
+    - cost must be zero
+    ```
+
+    **A.D.A.M.:**
+    ```text
+    MODE: MID -> POSSIBLE DEEP
+
+    All three are open-source (cost = zero). PostgreSQL handles
+    concurrent writes best. MySQL is solid but requires more tuning.
+    SQLite serializes writes — not suitable for concurrent workloads.
+    All three run within 1 GB RAM with modest configuration.
+
+    You can act now: PostgreSQL is the clear pick for concurrent
+    writes at zero cost on a VPS.
+
+    Switch to DEEP? (yes/no)
+    ```
+  </Tab>
+  <Tab title="After yes">
+    **User:**
+    ```text
+    yes
+    ```
+
+    **A.D.A.M.:**
+    ```text
+    MODE: DEEP
+    ...
+    [Full decision support with assumptions, failure modes, and AUDIT]
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## MODE: DEEP
+
+DEEP is full decision support. It starts only after an exact `yes` to a pending gating question, or via a manual override (`DEEP` as the first token).
+
+**What DEEP produces:**
+- Explicit assumptions stated in the response
+- Comparisons, failure modes, and stress tests where relevant
+- AUDIT footer always ON (4 lines: `AUDIT`, `ACTION:`, `RISK:`, `BASIS:`)
+- Eligible top-level blocks may carry Sparse Local Provenance signals (see [Output Contract](/concepts/output-contract))
+
+<Tabs>
+  <Tab title="Manual DEEP override">
+    **User:**
+    ```text
+    DEEP compare these 3 cloud providers on cost and reliability
+    ```
+
+    **A.D.A.M.:**
+    ```text
+    MODE: DEEP
+
+    Assumption: comparing AWS, GCP, and Azure for a typical
+    web application workload at ~$500/month scale.
+
+    ...
+    [Full decision support body]
+    ...
+
+    AUDIT
+    ACTION: Select provider based on existing team expertise and
+            primary region availability.
+    RISK: Cost estimates shift significantly with egress and
+          reserved-instance commitments.
+    BASIS: Public pricing pages; cross-checked against known
+           egress tiers.
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Manual override
+
+Start any message with exactly `LOW`, `MID`, or `DEEP` followed by whitespace to force that mode, bypassing automatic routing entirely.
+
+```text
+LOW what is the capital of France
+MID explain the pros and cons of SSDs vs HDDs
+DEEP compare these 3 cloud providers on cost and reliability
+```
+
+Manual override wins over structural detection. If you write `DEEP` but the message has no structural triggers, A.D.A.M. still enters DEEP — AUDIT is always ON in DEEP regardless of structural signals.
+
+<Note>
+  **Boundary strictness.** The override token must be followed by whitespace (space, tab, or newline) — not punctuation. `MID o che bello` is a valid override. `MID, o che bello` is **not** — the comma after the token breaks the boundary and the override is not recognised.
+</Note>
+
+---
+
+## No-inertia rule
+
+Mode is recomputed from scratch on every turn. A previous DEEP reply does not carry forward. The next message is routed independently based on its own structure and content.
+
+**One-turn inheritance exception:** A message with no whitespace that ends with `?` inherits the previous exact `LOW`, `MID`, or `DEEP` for that one turn only. `MODE: MID -> POSSIBLE DEEP` is never inherited.
+
+| Scenario | Behaviour |
+|---|---|
+| Previous: `DEEP`. Next: normal message | Next is routed fresh — DEEP is not assumed |
+| Previous: `DEEP`. Next: `Really?` (no whitespace, ends `?`) | Next inherits DEEP for one turn |
+| Previous: `MID -> POSSIBLE DEEP`. Next: `Really?` | No inheritance — POSSIBLE DEEP is never inherited |

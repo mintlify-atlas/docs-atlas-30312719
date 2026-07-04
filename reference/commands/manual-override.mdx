@@ -1,0 +1,148 @@
+---
+title: "Manual Mode Override: LOW, MID, and DEEP Prefixes"
+sidebarTitle: "Manual Override"
+description: "Force A.D.A.M. into a specific depth mode by starting any message with LOW, MID, or DEEP followed by a space — bypassing automatic structural routing."
+---
+
+Manual override lets you take direct control of A.D.A.M.'s response depth for a single turn. Starting a message with exactly `LOW`, `MID`, or `DEEP` followed by boundary whitespace forces that mode for the reply — regardless of what the automatic structural routing would have chosen. This is the fastest way to get a short answer when A.D.A.M. would otherwise go deeper, or to force full decision support without waiting for gating.
+
+---
+
+## Syntax
+
+```text
+LOW <rest of message>
+MID <rest of message>
+DEEP <rest of message>
+```
+
+The override token must be the **first token** of the message. The rest of the message follows after a single space (boundary whitespace). Everything after the space is the actual request content.
+
+---
+
+## Examples
+
+Force a minimal, direct answer:
+
+```text
+LOW what is the capital of France
+```
+
+Force a structured but not deep answer:
+
+```text
+MID explain the difference between TCP and UDP
+```
+
+Force full decision support immediately, bypassing gating:
+
+```text
+DEEP compare these options:
+A) PostgreSQL
+B) MySQL
+C) SQLite
+Budget: under $100/month
+Needs:
+- managed hosting
+- high availability
+- JSONB support
+```
+
+---
+
+## Boundary strictness
+
+The override token must be followed by **boundary whitespace** (a space or line break). A comma, punctuation, or any other non-whitespace character immediately after the token breaks the boundary and the override is **not** recognized.
+
+| Input | Override valid? | Why |
+|---|---|---|
+| `MID o che bello` | ✅ Yes | Space follows token |
+| `MID, o che bello` | ❌ No | Comma breaks boundary |
+| `DEEP` (alone, no trailing content) | ✅ Yes | Valid override, but no trailing source for overlay |
+| `deep explain this` | ❌ No | Token is lowercase — case-sensitive |
+| `DEEPER explanation` | ❌ No | `DEEPER` is not a recognized token |
+
+<Warning>
+  Override matching is case-sensitive. `low`, `mid`, and `deep` in lowercase are not recognized as override tokens and will be treated as normal message content.
+</Warning>
+
+---
+
+## Priority
+
+Manual override sits at **priority 5** in A.D.A.M.'s priority ladder:
+
+| Priority | Rule |
+|---|---|
+| 1 | `REMOUNT_REPLAY_DETECTED` |
+| 2 | `TRANSPORT_GATE` |
+| 3 | `OFF_GATE` |
+| 4 | `ACTIVE_CONTROL_COMMANDS` |
+| **5** | **`MANUAL_OVERRIDE`** |
+| 6 | `STRUCTURAL_KERNEL` |
+| 7 | `STATE_DEFAULT` |
+| 8 | `OUTPUT_CONTRACT` |
+
+This means manual override wins over structural routing and state defaults, but is subordinate to active control commands (like `ADAM PING`, `ADAM OFF`, etc.).
+
+---
+
+## DEEP override and AUDIT
+
+Forcing `DEEP` via manual override follows **all normal DEEP output rules**:
+
+- Full decision support response body
+- `AUDIT` footer appended (since `AUDIT_ON` is always true in DEEP)
+- Sparse Local Provenance signals on eligible top-level blocks where conditions are met
+
+No gating consent is required. The `Switch to DEEP? (yes/no)` line is skipped entirely — you are already in DEEP.
+
+---
+
+## DEEP override and the structural classification overlay
+
+When `DEEP` is entered via manual override with trailing content, A.D.A.M. emits the automatic structural classification overlay as the second line of the reply. The overlay source turn is derived from the current user message **after stripping the leading `DEEP ` token**.
+
+This normalization — removing the `DEEP ` prefix before deriving the overlay — is overlay-only. It applies only to the presentation layer and **does not** alter:
+
+- The raw current user turn
+- The strict `TRACE INPUT` output (which always traces the raw turn)
+- The structural kernel computation
+
+When `DEEP` is used alone (no trailing content), there is no source turn for the overlay, so the overlay is omitted.
+
+---
+
+## No-inertia and override
+
+A.D.A.M. recomputes the mode on **every** user message. A forced `DEEP` on one turn does not carry forward to the next. The next turn is evaluated from scratch via automatic routing unless you explicitly override again.
+
+<Note>
+  There is no "stay in DEEP" state after a manual override. Every turn starts fresh.
+</Note>
+
+---
+
+## One-turn inheritance exception
+
+There is one narrow exception to no-inertia:
+
+> A message with **no whitespace** that ends with `?` inherits the previous exact `LOW`, `MID`, or `DEEP` for one turn only.
+
+This lets single-word follow-up questions (like `Why?` or `Really?`) stay at the same depth as the preceding answer without requiring you to repeat the override token.
+
+`MODE: MID -> POSSIBLE DEEP` is **never** inherited under this rule — only the three exact modes (`LOW`, `MID`, `DEEP`).
+
+---
+
+## Override reference table
+
+| Override | Example input | Expected reply depth |
+|---|---|---|
+| `LOW` | `LOW what year was Python first released` | Minimal, direct answer — no structure overhead |
+| `MID` | `MID pros and cons of using a monorepo` | Structured answer with compact organization |
+| `DEEP` | `DEEP compare A) Redis B) Memcached — latency under 1ms, cost <$50/mo` | Full decision support with AUDIT footer and provenance signals on eligible blocks |
+
+<Tip>
+  Use `LOW` to cut through verbose responses on simple factual questions. Use `DEEP` when you already know the request is structurally complex and don't want to go through the gating consent step.
+</Tip>

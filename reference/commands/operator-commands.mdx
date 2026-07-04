@@ -1,0 +1,204 @@
+---
+title: "Operator Commands: TRACE INPUT, SYS STATUS, SELF TEST, UNSUPPORTED WHY"
+sidebarTitle: "Operator Commands"
+description: "Reference for A.D.A.M.'s four operator diagnostic commands — strict-output probes for input tracing, system health, self-testing, and failure diagnosis."
+---
+
+Operator commands are diagnostic and operator-grade controls for inspecting and verifying A.D.A.M.'s behavior from the outside. Like core commands, they are **exact-match, case-sensitive, full-message commands** — the entire message must be the command string after trimming. They are available while the protocol is ACTIVE. Their outputs are strict literals that **must not be paraphrased, reformatted, or extended** — what the spec defines is exactly what must appear.
+
+---
+
+## TRACE INPUT
+
+```text
+TRACE INPUT
+```
+
+**Availability:** ACTIVE
+
+`TRACE INPUT` returns a strict one-line forensic trace of the **last visible user-authored message** — the turn immediately before the `TRACE INPUT` command itself, not the command turn. This is the operator-grade surface for verifying exactly what A.D.A.M. saw as input for a given turn.
+
+### Output format
+
+```text
+INPUT_TRACE: len=<L> head="<H>" tail="<T>" struct=[opt:<n> step:<n> crit:<n> num:<Y|N>]
+```
+
+**Field reference:**
+
+| Field | Meaning |
+|---|---|
+| `len=<L>` | Raw character count of the traced message as seen by the model. Use `len=0` if the count is unreliable. |
+| `head="<H>"` | First 16 characters of the traced message after normalization (newlines replaced with spaces, `"` replaced with `'`). |
+| `tail="<T>"` | Last 16 characters of the traced message after the same normalization. |
+| `struct=[...]` | Structural summary recomputed on the traced message only, using the same primitives as the structural kernel (section S). |
+
+**Struct subfields:**
+
+| Subfield | Meaning |
+|---|---|
+| `opt:<n>` | Count of line-start option blocks (`A)`, `B)`, `1)`, `2)`, etc.) |
+| `step:<n>` | Count of line-start step blocks (`1.`, `2.`, `3.`, etc.) |
+| `crit:<n>` | Count of criteria items (line-start `-` or `*`, excluding option and step blocks) |
+| `num:<Y\|N>` | `Y` if the traced message would set `HAS_NUM` true, `N` otherwise |
+
+**Normative struct examples:**
+
+```text
+INPUT_TRACE: len=42 head="compare A) postg" tail="HA availability" struct=[opt:3 step:0 crit:3 num:Y]
+INPUT_TRACE: len=18 head="what is TCP" tail="what is TCP" struct=[opt:0 step:0 crit:0 num:N]
+INPUT_TRACE: len=61 head="1. install deps " tail="3. run the tests" struct=[opt:0 step:3 crit:0 num:Y]
+```
+
+### If no prior turn is visible
+
+```text
+INPUT_TRACE: UNAVAILABLE
+```
+
+### Output rules
+
+- No mode tag
+- No prose
+- No extra lines
+- `struct` is a legibility tool for the operator, not a kernel mirror and not the gating binding mechanism
+- `TRACE INPUT` recomputes `struct` on the traced message only — never on the `TRACE INPUT` command turn itself
+
+<Note>
+  The **automatic structural classification overlay** that appears in `MODE: MID -> POSSIBLE DEEP` and `MODE: DEEP` normal replies uses the same underlying traced-input model but is a separate, presentation-only surface. It is not a substitute for the strict forensic output of `TRACE INPUT`.
+</Note>
+
+**Use case:** Verify exactly what A.D.A.M. saw as input for a given turn — useful when debugging unexpected routing decisions, gating behavior, or structural classification results.
+
+---
+
+## SYS STATUS
+
+```text
+SYS STATUS
+```
+
+**Availability:** ACTIVE
+
+`SYS STATUS` runs the `SYS_STATUS.md` probe file if it is available in the host's context. It produces an operational health table that scores key protocol behaviors on a 0–3 scale, then emits a summary final line.
+
+### Scored behaviors
+
+| Behavior | Description |
+|---|---|
+| `TAG` | Mode tag presence and correctness on normal replies |
+| `FACTOID` | Factoid routing (LOW) accuracy |
+| `BANTER` | Banter routing (LOW) accuracy |
+| `DEEP_GATING` | Correct DEEP gating flow when `DEEP_CANDIDATE` is true |
+| `GATING_NO` | Correct handling of a `no` response to gating |
+| `NO_INERTIA` | Mode recomputation on every turn (no carry-over from prior mode) |
+
+### Final summary line format
+
+```text
+UPTIME: <0-3> | FUNCTIONAL: <0-3> | SCORES: TAG=<0-3>,FACTOID=<0-3>,BANTER=<0-3>,DEEP_GATING=<0-3>,GATING_NO=<0-3>,NO_INERTIA=<0-3>
+```
+
+### If the probe file is unavailable
+
+```text
+SOURCE_FILE_UNAVAILABLE SYS_STATUS.md
+```
+
+### Internal effect (not printed)
+
+Running `SYS STATUS` internally re-applies the active spec as SSOT and resets the State Overlay to EXPLORE for the next turn only. This effect is never printed.
+
+<Note>
+  `SYS STATUS` is a diagnostic. It is not required for normal operation and not required for first activation.
+</Note>
+
+---
+
+## ADAM SELF TEST
+
+```text
+ADAM SELF TEST
+```
+
+**Availability:** ACTIVE
+
+`ADAM SELF TEST` runs the `ADAM_SELF_TEST.md` probe file if it is available in the host's context. It produces one output line per test case verifying that the host is satisfying A.D.A.M.'s behavioral contracts correctly.
+
+### Output format
+
+One line per test:
+
+```text
+T#: <expected> - <PASS|FAIL>
+```
+
+- No mode tag
+- No prose
+- No extra lines beyond the per-test lines
+
+### If the probe file is unavailable
+
+```text
+SOURCE_FILE_UNAVAILABLE ADAM_SELF_TEST.md
+```
+
+**Use case:** Verify that the host is correctly applying A.D.A.M.'s output contracts, routing rules, gating behavior, and strict command shapes. Useful for diagnosing whether unexpected responses are a host compliance failure or a protocol issue.
+
+---
+
+## UNSUPPORTED WHY
+
+```text
+UNSUPPORTED WHY
+```
+
+**Availability:** ACTIVE
+
+`UNSUPPORTED WHY` returns exactly one line classifying the cause of a preceding `ADAM_UNSUPPORTED` output. It is best-effort inference from visible context only.
+
+### Output format
+
+```text
+CAUSE <CLASS>
+```
+
+### CLASS values
+
+| Class | Meaning |
+|---|---|
+| `HARD_STOP` | Hard safety or policy limit imposed by the host |
+| `AUDIT_FORMAT` | `AUDIT` block invariant could not be satisfied |
+| `HOST_FORMAT` | Host truncation, incomplete protocol context, wrapper interference, or forced formatting that breaks a strict invariant |
+| `CONTROL_STRICT` | A strict command output contract could not be met |
+| `CONFLICT` | Conflicting constraints from protocol sections |
+| `UNKNOWN` | Cause cannot be determined from visible context |
+
+### Precedence
+
+When multiple causes are plausible, the highest-ranking cause wins:
+
+```text
+HARD_STOP > AUDIT_FORMAT > HOST_FORMAT > CONTROL_STRICT > CONFLICT > UNKNOWN
+```
+
+If the cause cannot be determined with confidence: `CAUSE UNKNOWN`.
+
+<Note>
+  `UNSUPPORTED WHY` provides **best-effort inference from visible context only**. It does not have access to internal host state, platform telemetry, or causes that are invisible to the protocol.
+</Note>
+
+---
+
+## Probe file availability
+
+<CardGroup cols={2}>
+  <Card title="ADAM_SELF_TEST.md" icon="flask">
+    Required in host context for `ADAM SELF TEST` to run. If unavailable, returns `SOURCE_FILE_UNAVAILABLE ADAM_SELF_TEST.md`. Load it from the repo alongside the main protocol file.
+  </Card>
+  <Card title="SYS_STATUS.md" icon="chart-bar">
+    Required in host context for `SYS STATUS` to run. If unavailable, returns `SOURCE_FILE_UNAVAILABLE SYS_STATUS.md`. Load it from the repo alongside the main protocol file.
+  </Card>
+</CardGroup>
+
+Both files are external diagnostics. They are **not** required for first activation and **not** required for normal day-to-day operation. Load them when you want to verify protocol compliance or inspect session health.

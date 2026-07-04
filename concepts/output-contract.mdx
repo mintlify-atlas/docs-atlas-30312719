@@ -1,0 +1,198 @@
+---
+title: "A.D.A.M. Output Contract: Tags, AUDIT, and Fail-Closed"
+sidebarTitle: "Output Contract"
+description: "Every A.D.A.M. reply must start with a MODE tag, append an AUDIT block when warranted, and fail-closed to ADAM_UNSUPPORTED if strict invariants cannot be met."
+---
+
+The output contract defines the exact shape of every reply A.D.A.M. produces while ACTIVE. It covers the required MODE tag, the AUDIT footer, publish-boundary validation, strict-output precedence, fail-closed behaviour, and the Sparse Local Provenance signal layer for DEEP replies.
+
+---
+
+## MODE tags
+
+Every non-strict reply while ACTIVE must start with exactly one of these four tags as its first line:
+
+```text
+MODE: LOW
+MODE: MID
+MODE: DEEP
+MODE: MID -> POSSIBLE DEEP
+```
+
+No other first-line values are valid for normal replies. Strict command outputs (such as `ADAM_PING_OK` or `ADAM_REMOUNT_OK`) follow their own fixed contracts and are not subject to this tag rule. See [Modes](/concepts/modes) for what each tag signals.
+
+---
+
+## AUDIT footer
+
+The AUDIT footer is a strictly bounded 4-line block appended when `AUDIT_ON` is true. It is never expanded, never summarised differently, and never omitted when the condition is met.
+
+```text
+AUDIT
+ACTION: <text or ->
+RISK: <text or ->
+BASIS: <text or ->
+```
+
+### AUDIT rules
+
+<CardGroup cols={2}>
+  <Card title="Format">
+    Exactly 4 lines. Exactly one space after each colon. No bullets inside the block. No extra lines. No expansion beyond 4 lines.
+  </Card>
+  <Card title="Placement">
+    If a gating line is present (`Switch to DEEP? (yes/no)`), AUDIT is placed immediately before it. Otherwise AUDIT is the final block of the reply.
+  </Card>
+  <Card title="Using –">
+    If a line cannot be grounded, use `-`. Using `-` is normal and does not indicate protocol failure. It signals that no concrete basis was available for that field.
+  </Card>
+  <Card title="BASIS: field">
+    Records one compact local grounding basis only: a concrete check, a visible source, or an observable verification basis. It is not a general explanation field. No multiple grounding bases on one line. No abstract justification without a concrete anchor.
+  </Card>
+</CardGroup>
+
+### When AUDIT_ON fires
+
+`AUDIT_ON` is true under any of these conditions (see [Routing](/concepts/routing) for the full kernel definition):
+
+- `MODE == DEEP` (AUDIT is always ON in DEEP)
+- `DEEP_CANDIDATE` is true
+- `RETROGRADE_HARD` is true
+- The overlay state is `DECIDE` or `VERIFY` **and** the message contains `HAS_2PLUS_OPTIONS`, `HAS_STEPS_OR_TIMELINE`, `HAS_NUM`, or `HAS_3PLUS_CRITERIA`
+
+### Example: MID reply with AUDIT
+
+```text
+MODE: MID
+
+PostgreSQL handles concurrent writes reliably and runs comfortably
+within 1 GB RAM with standard configuration. It is actively
+maintained and has no licensing cost.
+
+You can proceed with PostgreSQL for this workload.
+
+AUDIT
+ACTION: Deploy PostgreSQL; configure max_connections to fit
+        available RAM before going live.
+RISK: Default shared_buffers may be too low for performance;
+      tuning is required.
+BASIS: PostgreSQL documentation on resource consumption;
+       verified against 1 GB RAM baseline configurations.
+```
+
+---
+
+## Publish-boundary validation
+
+Before every emission, A.D.A.M. applies a validation pass:
+
+<Steps>
+  <Step title="Draft">
+    Construct the full response including mode tag, body, AUDIT (if required), and gating line (if required).
+  </Step>
+  <Step title="Validate">
+    Check high-signal invariants: valid mode tag on the first line; correct AUDIT block if `AUDIT_ON`; exact gating line as the last line if gating is present; C5 signal form and placement if provenance signals are present.
+  </Step>
+  <Step title="Rewrite once if needed">
+    If an invariant fails, rewrite the draft once to correct it.
+  </Step>
+  <Step title="Fail-closed">
+    If strict invariants still cannot be satisfied after one rewrite, output **only** `ADAM_UNSUPPORTED`. No partial output. No approximation.
+  </Step>
+</Steps>
+
+---
+
+## Strict-output precedence
+
+When a strict output contract applies — for commands (`ADAM PING`, `ADAM OFF`, `ADAM ON`, `ADAM PERSIST`, `ADAM REMOUNT`) and for probes (`TRACE INPUT`, `ADAM SELF TEST`, `SYS STATUS`, `UNSUPPORTED WHY`) — the strict contract overrides all general emission rules. No additional prose, citations, notes, or explanations may appear after the final contract line.
+
+If the exact strict output cannot be satisfied, the only permitted output is `ADAM_UNSUPPORTED`.
+
+---
+
+## Fail-closed: ADAM_UNSUPPORTED
+
+`ADAM_UNSUPPORTED` is the protocol's fail-closed signal. It is output **only** when a strict invariant cannot be satisfied reliably. It is intentional — A.D.A.M. should not pretend to be active when the output contract cannot be met.
+
+Conditions that produce `ADAM_UNSUPPORTED`:
+
+| Condition | Example |
+|---|---|
+| A strict invariant cannot be satisfied reliably | Host formatting breaks a required exact output line |
+| Protocol context is truncated or incomplete | Required operability packets are missing from visible context |
+| Physical bootstrap fails | Level 1 protocol operability check fails during `ADAM PING` in TRANSPORT |
+
+<Warning>
+  `ADAM_UNSUPPORTED` must never be output for semantic mismatch alone — only for strict invariant failure. If A.D.A.M. disagrees with a request or cannot answer a question, it says so in prose. `ADAM_UNSUPPORTED` is reserved for cases where the output contract itself cannot be upheld.
+</Warning>
+
+After an `ADAM_UNSUPPORTED` output, the operator command `UNSUPPORTED WHY` returns a single line identifying the failure class:
+
+```text
+CAUSE <CLASS>
+```
+
+Where `<CLASS>` is one of: `HARD_STOP`, `AUDIT_FORMAT`, `HOST_FORMAT`, `CONTROL_STRICT`, `CONFLICT`, `UNKNOWN`.
+
+---
+
+## Sparse Local Provenance (C5)
+
+In DEEP replies only, eligible top-level blocks may carry a local provenance signal. These signals are post-form annotations — they are emitted after the block content is frozen, and they never reshape or reorder block text to make conditions meetable.
+
+### Eligible blocks
+
+Only top-level column-1 numbered (`1.`, `2.`, `3.`) or bullet (`-`) items are eligible. The following are **not** eligible:
+
+- Nested items or sub-bullets
+- Section headers or prose paragraphs
+- Tables, code blocks, or block quotes
+
+### Signal vocabulary
+
+| Signal | Condition |
+|---|---|
+| `infer` | An inferential bridge is explicitly written in the block text. The bridge must be shown, not implied. |
+| `infer [pending]` | Same as `infer`, plus an unresolved checkpoint explicitly named in the block text. Both conditions must hold independently. |
+| `depends: <premise>` | The block's operative claim is explicitly linked to a non-visible premise by dependency wording in the block text. The premise must be specifically named, not described generically. |
+| `depends: <premise> [pending]` | Same as `depends:`, plus an unresolved checkpoint explicitly named in the block text. Both conditions must hold independently. |
+
+**Precedence** (highest to lowest, evaluated independently):
+
+1. `depends: <X> [pending]`
+2. `depends: <X>`
+3. `infer [pending]`
+4. `infer`
+
+If no condition passes, no signal is emitted. Absence of a signal carries no negative meaning.
+
+### Placement rule
+
+The signal appears on its own line, immediately after the block's final content line. It must not be appended inline with block text, and no prose or continuation may follow it within the same block.
+
+### Example: DEEP reply with C5 signals
+
+```text
+MODE: DEEP
+
+1. PostgreSQL is the correct choice for concurrent write workloads
+   at this RAM constraint. The documentation explicitly states that
+   max_connections * work_mem determines effective memory use, so
+   tuning is required before the RAM ceiling becomes a hard limit.
+infer
+
+2. Replication lag under write bursts depends on the network
+   throughput between primary and replica, which is not specified
+   in the current setup description. This assumption must be
+   confirmed before relying on a streaming replica as a read
+   offload path.
+depends: network throughput between primary and replica [pending]
+
+AUDIT
+ACTION: Deploy PostgreSQL; tune max_connections and work_mem
+        before production load.
+RISK: Replica lag under bursts if network throughput is
+      insufficient.
+BASIS: PostgreSQL documentation on memory configuration.
+```

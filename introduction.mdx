@@ -1,0 +1,75 @@
+---
+title: "A.D.A.M.: Spec-First Depth Control for AI Chat"
+sidebarTitle: "Introduction"
+description: "A.D.A.M. is a portable text protocol that gives every AI reply an explicit depth label — LOW, MID, or DEEP — based on the structure of the user's request."
+---
+
+A.D.A.M. (Adaptive Depth and Mode) is a behavioral specification for AI chat. You load the protocol file into your chat host's instruction field, send a single handshake command, and every response the assistant produces from that point forward is explicitly labeled with a depth mode. No library to install. No service to call. The spec is the implementation — loading `A.D.A.M.v5.txt` into a compatible host makes it the active session contract.
+
+<Note>
+  A.D.A.M. is not a software library. It is a text specification. When you place `A.D.A.M.v5.txt` into a compatible host's system prompt or custom instructions field, the protocol becomes the binding response contract for that session. There is no package to import, no API to authenticate against, and no runtime to start.
+</Note>
+
+## The problem it solves
+
+Without explicit depth control, AI chat tends to drift: simple questions receive over-explained responses, complex decisions receive shallow summaries, and long sessions accumulate noise rather than precision. There is no visible signal telling you whether the reply was meant to be brief or thorough, and no reliable way to lock that decision in place across turns.
+
+A.D.A.M. addresses this directly:
+
+- Every reply begins with a `MODE` tag — `MODE: LOW`, `MODE: MID`, or `MODE: DEEP` — so depth is never implicit.
+- Mode is selected by analyzing the *shape* of your request, not by guessing intent from keywords.
+- You can override the automatic choice at any time by starting your message with `LOW`, `MID`, or `DEEP`.
+- Full decision-support mode (`DEEP`) requires either your explicit confirmation or a manual override — the protocol never enters it silently.
+
+## The three modes
+
+| Mode | What it does |
+|---|---|
+| `LOW` | Fast, minimal, direct. No needless structure. Ideal for factual lookups, definitions, and brief questions. |
+| `MID` | Default rigorous mode. Compact structure when it improves correctness or decision quality. The baseline for most exchanges. |
+| `DEEP` | Full decision support. Explicit assumptions, comparisons, failure modes, and stress tests are allowed. Always includes a bounded `AUDIT` footer. |
+
+When A.D.A.M. detects that a request may benefit from deeper reasoning but `DEEP` has not been forced, it surfaces `MODE: MID -> POSSIBLE DEEP` — a MID-level answer that is already useful, followed by a single consent gate: `Switch to DEEP? (yes/no)`. Replying `yes` enters the full `DEEP` pass; anything else continues normally.
+
+## Key design principles
+
+**Structural routing, not keyword matching.** The structural kernel examines input shape — option blocks (`A)`, `B)`), step sequences (`1.`, `2.`, `3.`), criteria items (line-start `-` or `*`), and numeric values. Complex structural patterns produce `DEEP_CANDIDATE` status. Simple requests stay light automatically.
+
+**Consent-gated DEEP.** `DEEP` mode is never entered by inference alone. Automatic detection surfaces a candidate and asks. Manual override (`DEEP` as the first word) forces it directly. Both paths are explicit.
+
+**Fail-closed invariants.** If a strict protocol invariant cannot be satisfied reliably — because the host rewrites output, truncates context, or cannot run the required checks — A.D.A.M. outputs only `ADAM_UNSUPPORTED`. It never approximates or pretends to be active when the output contract cannot be met.
+
+**Bounded `AUDIT` output.** When an `AUDIT` block is required, it is exactly four lines: `AUDIT`, `ACTION:`, `RISK:`, `BASIS:`. It cannot be expanded. Lines that cannot be grounded use `-`. The audit block is a guardrail, not an essay.
+
+**No-inertia rule.** Mode is recomputed from scratch on every turn. The previous mode never carries forward as justification for staying in `DEEP`. Each message starts fresh.
+
+## What the repo contains
+
+| File | Purpose |
+|---|---|
+| `A.D.A.M.v5.txt` | Canonical protocol file. This is what you load into the host. |
+| `ADAM_SELF_TEST.md` | External self-test probe for verifying expected behavior. |
+| `SYS_STATUS.md` | Lightweight session health and status probe. |
+| `docs/lexicon.md` | Official terminology used across the repo. |
+| `docs/field-report-chat.md` | Field report from a real multi-iteration creative workflow. |
+
+## Who A.D.A.M. is for
+
+A.D.A.M. is built for developers and power users who run long, multi-turn AI sessions and need stable, predictable, depth-controlled responses. It is well-suited to decisions, planning, structured reviews, iterative creative work, and any task where you want the assistant to stay focused instead of expanding by default.
+
+If you are writing a single casual question, you probably do not need it. If you are managing a complex session over dozens of turns and noticing drift, noise, or unclear depth signals, A.D.A.M. was designed for exactly that situation.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Load the protocol, send your first ping, and receive a depth-labeled reply in under 30 seconds.
+  </Card>
+  <Card title="How It Works" icon="gears" href="/how-it-works">
+    Understand the priority ladder, structural kernel, and output contract that govern every reply.
+  </Card>
+  <Card title="Modes" icon="sliders" href="/concepts/modes">
+    Deep-dive into LOW, MID, DEEP, and the POSSIBLE DEEP gating flow.
+  </Card>
+  <Card title="Core Commands" icon="terminal" href="/reference/commands/core-commands">
+    Full reference for ADAM PING, ADAM OFF, ADAM ON, ADAM REMOUNT, and more.
+  </Card>
+</CardGroup>

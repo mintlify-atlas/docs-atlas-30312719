@@ -1,0 +1,143 @@
+---
+title: "A.D.A.M. State Machine: TRANSPORT, ACTIVE, OFF"
+sidebarTitle: "State Model"
+description: "A.D.A.M. tracks session state through three transport/activity states and four internal reasoning overlay states that govern routing and output."
+---
+
+A.D.A.M. operates a two-layer state model. The outer layer — transport/activity state — controls whether the protocol is active and what commands are available. The inner layer — reasoning overlay state — is an internal governor for long-session routing stability. Neither layer is stored by the protocol itself; both are recalculated from visible context on each turn.
+
+<Info>
+  Reasoning overlay state is ephemeral — it is recalculated from visible history each turn, not stored by the protocol. This means it cannot carry over after context loss.
+</Info>
+
+---
+
+## Transport / activity states
+
+| State | Description |
+|---|---|
+| `TRANSPORT` | The protocol file is present in context but not yet activated. Only exact `ADAM PING` and exact remount replay are available. All other non-empty turns return the fixed 2-line transport response. |
+| `ACTIVE` | The protocol is active. Normal routing, manual overrides, commands, and probes are all available. |
+| `OFF` | The protocol is temporarily off. Only `ADAM ON` can return to ACTIVE. Normal chat continues without A.D.A.M. mode tags. |
+
+<Note>
+  Transport/activity state is inferred only from visible exact events — `ADAM PING`, `ADAM OFF`, `ADAM ON`, and exact remount replay. It is never presumed from apparent conversation continuity. If visible context does not establish ACTIVE or OFF, state defaults to TRANSPORT.
+</Note>
+
+---
+
+## State transitions
+
+<Steps>
+  <Step title="Activation: TRANSPORT → ACTIVE">
+    Send exactly `ADAM PING` while in TRANSPORT. A.D.A.M. runs the protocol operability check and `G0` physical classification, then replies with the strict 4-line bootstrap output and enters ACTIVE.
+  </Step>
+  <Step title="Liveness check: ACTIVE → ACTIVE">
+    Send exactly `ADAM PING` while already ACTIVE. A.D.A.M. confirms liveness with a strict 2-line reply. This does not re-run `G0`, does not clear pending gating, and does not alter overlay state.
+  </Step>
+  <Step title="Deactivation: ACTIVE → OFF">
+    Send exactly `ADAM OFF`. A.D.A.M. replies with the strict 2-line off response. Normal chat continues without A.D.A.M. tags.
+  </Step>
+  <Step title="Reactivation: OFF → ACTIVE">
+    Send exactly `ADAM ON`. A.D.A.M. replies with the strict 2-line on response and returns to ACTIVE.
+  </Step>
+  <Step title="Recovery: any state → ACTIVE">
+    Paste the exact remount capsule body (delimited by `REMOUNT_BEGIN` and `REMOUNT_END`). A.D.A.M. confirms with `ADAM_REMOUNT_OK` and enters ACTIVE from any prior state.
+  </Step>
+</Steps>
+
+### Transition table
+
+| From | Event | To | Notes |
+|---|---|---|---|
+| TRANSPORT | exact `ADAM PING` | ACTIVE | Runs G0 bootstrap |
+| ACTIVE | exact `ADAM PING` | ACTIVE | Liveness only; no reset |
+| ACTIVE | exact `ADAM OFF` | OFF | |
+| OFF | exact `ADAM ON` | ACTIVE | |
+| OFF | exact `ADAM OFF` | OFF | Remains off |
+| ACTIVE | exact `ADAM ON` | ACTIVE | Already active |
+| Any | exact remount replay | ACTIVE | Recovery path |
+
+---
+
+## Post-handshake reset
+
+After a TRANSPORT → ACTIVE transition via exact `ADAM PING`, or after exact remount replay confirmation, the following reset occurs:
+
+<CardGroup cols={2}>
+  <Card title="Cleared">
+    Pre-handshake transport context and pending gating are cleared. Cached gating references from pre-handshake turns are discarded.
+  </Card>
+  <Card title="Preserved">
+    An exact `ADAM PING` while already ACTIVE is liveness-only: pending gating, cached gating references, and overlay state are left untouched.
+  </Card>
+</CardGroup>
+
+The next routed turn after a full handshake starts fresh under normal AUTO/MANUAL handling.
+
+---
+
+## Reasoning overlay states
+
+The overlay states are internal — they are never printed in replies. They are recalculated from visible turn history and current-turn structure each time a reply is generated.
+
+| Overlay State | Meaning |
+|---|---|
+| `EXPLORE` | Default when ACTIVE begins. Free-form input, no convergence pressure. |
+| `CONVERGE` | Structural complexity is increasing; the conversation is narrowing toward a decision. |
+| `DECIDE` | A decision is being made or recommended. |
+| `VERIFY` | Checking or validating a prior decision. |
+
+### Allowed overlay transitions
+
+```text
+EXPLORE → CONVERGE → DECIDE → VERIFY → DECIDE
+
+Any state → EXPLORE   (if RETROGRADE_HARD)
+```
+
+Additional rules:
+- If `DEEP_CANDIDATE` is true and the current overlay is EXPLORE, it moves to CONVERGE (anti-sticky rule).
+- If overlay history is ambiguous, the previous overlay state is retained rather than reverting to a prior MODE.
+- If ACTIVE is established but overlay history is unavailable or ambiguous, overlay defaults to EXPLORE.
+- `RETROGRADE_HARD` reset is applied before any anti-sticky update.
+
+---
+
+## Decision-complete discipline
+
+When the overlay state is `DECIDE` or `VERIFY`, the mode is not LOW, and `AUDIT_ON` is true, A.D.A.M. applies the decision-complete discipline:
+
+- At least one of the following must be present in the response body: an alternative, a risk, or a verification basis.
+- Outside DEEP, this is kept to the dominant-only signal: at most one risk and one verification item in the body.
+- If more depth is required to satisfy this discipline, A.D.A.M. either asks a single yes/no question or proposes the DEEP gating flow if the message is structurally eligible.
+
+This discipline ensures that decision-state replies do not recommend an action without at least one concrete guardrail.
+
+---
+
+## TRANSPORT gate behaviour
+
+While in TRANSPORT:
+
+| Turn | Response |
+|---|---|
+| Exact `ADAM PING` | Strict 4-line bootstrap output; transitions to ACTIVE |
+| Exact remount replay | `ADAM_REMOUNT_OK`; transitions to ACTIVE |
+| Upload only (no text) | No assistant-authored output; remains in TRANSPORT |
+| Any other non-empty turn | Exactly: `MODE: MID` / `NEXT: send ADAM PING.` |
+
+No routing, prose, commands, or probes are available before activation.
+
+---
+
+## OFF gate behaviour
+
+While in OFF:
+
+| Turn | Response |
+|---|---|
+| Exact `ADAM ON` | Strict 2-line on response; transitions to ACTIVE |
+| Exact `ADAM OFF` | Exactly: `MODE: MID` / `A.D.A.M. off.` |
+| Any other exact command or probe | Exactly: `MODE: MID` / `A.D.A.M. off.` |
+| Any non-command turn | Plain chat, no A.D.A.M. mode tags |

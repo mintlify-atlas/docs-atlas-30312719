@@ -1,0 +1,128 @@
+---
+title: "TRACE INPUT: Forensic Input Inspection"
+sidebarTitle: "TRACE INPUT"
+description: "TRACE INPUT returns a strict one-line machine-readable trace of the last visible user message — showing character count, head/tail, and structural classification."
+---
+
+`TRACE INPUT` is an operator command that returns a forensic, machine-readable trace of the last visible user-authored message — the turn immediately before the `TRACE INPUT` command itself. It shows what A.D.A.M. actually received and how it would structurally classify that input using the same primitives that drive mode routing and gating.
+
+`TRACE INPUT` is available only while `ACTIVE`. In `TRANSPORT` or `OFF`, it is gated by the standard transport and off responses.
+
+## What it does
+
+When you send `TRACE INPUT`, A.D.A.M. looks at the most recent prior user-authored turn in visible context (not the `TRACE INPUT` command turn itself) and outputs a single strict line describing that turn's character count, first 16 characters, last 16 characters, and structural classification counts.
+
+This is a **forensic/operator-grade tool**. It does not change routing, gating, or session state. It does not re-run the structural kernel — it reports on the traced turn using the same structural detection logic.
+
+## Exact output format
+
+```text
+INPUT_TRACE: len=<L> head="<H>" tail="<T>" struct=[opt:<n> step:<n> crit:<n> num:<Y|N>]
+```
+
+**No mode tag. No prose. No extra lines.**
+
+If no prior user-authored turn is visible before the `TRACE INPUT` command:
+
+```text
+INPUT_TRACE: UNAVAILABLE
+```
+
+## Field reference
+
+| Field | What it contains |
+|---|---|
+| `len` | Raw character count of the traced message as seen by the model. `0` if unreliable. |
+| `head` | First 16 characters of the traced message after normalization (newlines replaced with spaces; `"` replaced with `'`). |
+| `tail` | Last 16 characters of the traced message after normalization. |
+| `struct` | Structural classification counts derived by applying the same primitives as section S to the traced turn only. |
+
+### `struct` fields
+
+| Field | What it counts |
+|---|---|
+| `opt` | Number of line-start option blocks detected (`A)`, `B)`, `1)`, `2)`, …) |
+| `step` | Number of line-start step blocks detected (`1.`, `2.`, `3.`, …) |
+| `crit` | Number of criteria items detected (line-start `-` or `*`, excluding option and step blocks) |
+| `num` | `Y` if `HAS_NUM` would be true for the traced message, `N` otherwise |
+
+<Warning>
+  `len`, `head`, `tail`, and `struct` always reflect the **prior user-authored turn**, not the text `TRACE INPUT` itself. This binding is strict and cannot be overridden.
+</Warning>
+
+## Concrete examples
+
+### Input with options, criteria, and number
+
+Prior user turn:
+
+```text
+Compare A) and B)
+Budget: 100
+Need:
+- speed
+- reliability
+- low waste
+```
+
+Expected `TRACE INPUT` output:
+
+```text
+INPUT_TRACE: len=<L> head="Compare A) an" tail="- low waste" struct=[opt:2 step:0 crit:3 num:Y]
+```
+
+### Input with no structure
+
+Prior user turn:
+
+```text
+capital of germany
+```
+
+Expected `TRACE INPUT` output:
+
+```text
+INPUT_TRACE: len=18 head="capital of germa" tail="pital of germany" struct=[opt:0 step:0 crit:0 num:N]
+```
+
+### Input with steps and a date
+
+Prior user turn:
+
+```text
+1. Set up the database
+2. Configure the application
+3. Deploy to server
+Deadline: 2026-03-05
+```
+
+Expected `TRACE INPUT` output:
+
+```text
+INPUT_TRACE: len=<L> head="1. Set up the d" tail="ine: 2026-03-05" struct=[opt:0 step:3 crit:0 num:Y]
+```
+
+## Key rule: TRACE INPUT binds to the traced turn
+
+The `len`, `head`, `tail`, and `struct` values are computed from the prior user-authored turn — not from the `TRACE INPUT` command turn. This is invariant. Even if the `TRACE INPUT` command turn contains structure or numbers (which it cannot by definition, since the command is exact `TRACE INPUT`), the trace always targets the preceding turn.
+
+## Relationship to the automatic overlay
+
+There is an important distinction between invoking `TRACE INPUT` explicitly and the automatic `TRACE INPUT:` overlay that can appear in `MODE: MID -> POSSIBLE DEEP` and some `DEEP` replies.
+
+<Note>
+  The automatic structural classification overlay chips (e.g., `[confronto tra opzioni]`, `[vincoli da rispettare]`, `[numeri, date o limiti]`, `[passi o ordine]`) are **user-facing and localizable**. They classify input *structure* — not content. They do not change routing, gating, or session state, and they do not imply that the operator command `TRACE INPUT` was explicitly invoked.
+
+  The labels may follow the language of the surrounding reply under normal language-mirroring rules. Localization changes only the label — it does not alter the underlying traced-input primitives, structural counting logic, or detection thresholds.
+</Note>
+
+The strict `TRACE INPUT` command is the forensic/operator-grade tool. The automatic overlay is a bounded, presentation-only structural mirror that appears automatically when structural thresholds are met in qualifying reply modes. The two surfaces use the same underlying structural detection model but serve different purposes and are governed by separate rules.
+
+| | Strict `TRACE INPUT` | Automatic overlay |
+|---|---|---|
+| Trigger | Exact operator command | Automatic, when structural thresholds are met |
+| Output | One strict machine-readable line | Chip line immediately after mode tag |
+| Mode tag | None | Mode tag precedes it |
+| Localizable | No — fixed literals | Yes — chip labels follow reply language |
+| Changes routing or state | No | No |
+| Forensic grade | Yes | No |

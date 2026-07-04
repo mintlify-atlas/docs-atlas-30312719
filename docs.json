@@ -1,72 +1,92 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "A.D.A.M. — Adaptive Depth and Mode",
+  "theme": "luma",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
-  },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "pages": [
-      {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    "primary": "#4F6BFF",
+    "light": "#E8ECFF",
+    "dark": "#1A1F3C"
   },
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
     "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "type": "github",
+      "href": "https://github.com/XxYouDeaDPunKxX/A.D.A.M.-Adaptive-Depth-and-Mode"
     }
-  },
-  "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
-    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/XxYouDeaDPunKxX/A.D.A.M.-Adaptive-Depth-and-Mode"
     }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "how-it-works"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/modes",
+              "concepts/routing",
+              "concepts/state-model",
+              "concepts/output-contract"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/host-compatibility",
+              "guides/deep-gating",
+              "guides/audit-footer",
+              "guides/recovery-and-remount",
+              "guides/field-report"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Command Reference",
+            "pages": [
+              "reference/commands/core-commands",
+              "reference/commands/operator-commands",
+              "reference/commands/manual-override"
+            ]
+          },
+          {
+            "group": "Protocol Internals",
+            "pages": [
+              "reference/bootstrap",
+              "reference/structural-kernel",
+              "reference/provenance-signals"
+            ]
+          },
+          {
+            "group": "Diagnostics",
+            "pages": [
+              "reference/diagnostics/self-test",
+              "reference/diagnostics/sys-status",
+              "reference/diagnostics/trace-input"
+            ]
+          },
+          {
+            "group": "Lexicon",
+            "pages": [
+              "reference/lexicon"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

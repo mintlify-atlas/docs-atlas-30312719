@@ -1,0 +1,140 @@
+---
+title: "Bootstrap and BOOTSTRAP_CLASS in A.D.A.M."
+sidebarTitle: "Bootstrap"
+description: "How A.D.A.M. activates via ADAM PING, what the two-level bootstrap boundary check does, and what each BOOTSTRAP_CLASS value means for session reliability."
+---
+
+Bootstrap is the bounded activation process that runs exactly once during `ADAM PING` while the protocol is in `TRANSPORT` state. It is not a passive recognition event — it is a structured two-level boundary check that determines how the session is anchored before any routing or output begins. Once complete, the result is recorded as `BOOTSTRAP_CLASS`, which governs source-side session state for the remainder of the session.
+
+## Two-Level Bootstrap Boundary
+
+Bootstrap executes in two levels. Level 2 only runs if Level 1 passes. If Level 1 fails, the session fails closed.
+
+### Level 1: Protocol Operability Check (G0.pre)
+
+Before any physical classification can occur, all required identity and control literals must be present as exact visible matches in the same visible context. This check does not require code execution — it is a pure visibility gate.
+
+Required packets and their literals:
+
+<CardGroup cols={2}>
+  <Card title="Identity Packet">
+    - `KERNEL_ANCHOR: ADAM_V5_SSOT_KERNEL`
+    - `SPEC_SIGNATURE: ADAM_V5_SPEC_SIG`
+    - `KERNEL_END_ANCHOR: ADAM_V5_SSOT_KERNEL_END`
+  </Card>
+  <Card title="Transport / Activation Packet">
+    - `While state is TRANSPORT:`
+    - `NEXT: send ADAM PING.`
+  </Card>
+  <Card title="Strict Bootstrap Output Packet">
+    - `ADAM_PING_OK`
+    - `BOOTSTRAP_CLASS:`
+  </Card>
+  <Card title="Fail-Closed Packet">
+    - `ADAM_UNSUPPORTED`
+  </Card>
+  <Card title="State / Routing Packet">
+    - `Exact ADAM PING in TRANSPORT -> ACTIVE`
+    - `Every non-strict-normal reply while ACTIVE starts with exactly one of:`
+  </Card>
+</CardGroup>
+
+Any packet whose literals are partial or missing makes Level 1 fail. The only output in that case is:
+
+```text
+ADAM_UNSUPPORTED
+```
+
+<Warning>
+  Level 1 failure is protocol fail-closed, not a bootstrap class. `ADAM_UNSUPPORTED` is not a `BOOTSTRAP_CLASS` value — it indicates that the bootstrap boundary could not be evaluated reliably.
+</Warning>
+
+### Level 2: Physical Classification (G0)
+
+If Level 1 passes, the protocol proceeds to `G0` — a bounded discovery pass that attempts to locate and classify the source file on the host filesystem. `G0` runs as a single bounded pass only. No retry, no broadened discovery, and no alternative-class comparison are permitted.
+
+**Discovery bounds:**
+
+| Root | Max Depth |
+|------|-----------|
+| `cwd` | 1 |
+| `home` | 1 |
+| `/mnt` | 2 |
+| `/tmp` | 1 |
+
+Discovery proceeds root by root in that fixed order. As soon as the first unique sufficient physical candidate is found, discovery stops and continues with that candidate only. Non-physical results within an earlier root do not end discovery — the protocol continues to the next root.
+
+<Note>
+  Discovery is **content-based** via the `KERNEL_ANCHOR` literal, not filename-based. Only `.txt` and `.md` files are considered. No whole-filesystem scanning, no static host maps, no provider-name routing.
+</Note>
+
+## G0 Internal Scale
+
+`G0` phase 1 progresses through levels `L0` through `L5`. These determine `BOOTSTRAP_CLASS`. Phase 2 (`L6`) is opportunistic and internal only — it does not alter the public class.
+
+| Level | Name | What It Tests | Key Outputs |
+|-------|------|---------------|-------------|
+| `L0` | `EXEC` | Can code actually run in this surface? Determined by direct execution attempt only, not by inference. | `YES` / `NO` / `NOT_TENTABLE` |
+| `L1` | `AMBIENT` | Which local paths in the root candidate list exist? Room discovery only — zero claims, no binding. | path list |
+| `L2` | `DNA_BIND` | Can a physical file be found via the full anchor tuple (`KERNEL_ANCHOR` + `SPEC_SIGNATURE` + `KERNEL_END_ANCHOR`)? All three elements must be present in the same candidate file. | `BOUND` / `UNBOUND` / `AMBIGUOUS` |
+| `L3` | `MIRROR` | On the bound candidate: how strong is the bind? | `PHYSICAL` / `WEAK_PHYSICAL` / `TEXT_ONLY` |
+| `L4` | `FINGERPRINT` | If `PHYSICAL`: extract minimal identity (`path`, `bytes`, `hash_short`). | `INTACT` / `PARTIAL` / `MISMATCH` |
+| `L5` | `MANIFEST` | Attempt source-side write and readback on a sibling temporary probe file only. Never writes to the source file itself. | `RWP_VERIFIED` / `R_ONLY` / `FAILED` |
+| `L6` | `DEPLOY` | Opportunistic internal deploy. Runs only if `L5 = RWP_VERIFIED`. Internal only — never surfaces in public output and does not alter `BOOTSTRAP_CLASS`. | `DEPLOYED` / `SKIPPED` |
+
+<Note>
+  `G0` must not simulate, infer, or approximate discovery results. If direct host evidence is insufficient to complete the chosen `G0` branch reliably, the output is `ADAM_UNSUPPORTED` — a `G0`-internal fallback, distinct from the Level 1 operability failure.
+</Note>
+
+## BOOTSTRAP_CLASS Values
+
+`BOOTSTRAP_CLASS` is the public source-side record of the bootstrap state established by the boundary check and `G0`. It appears as line 4 of the strict `ADAM PING` output while in `TRANSPORT`.
+
+```text
+MODE: MID
+ADAM_PING_OK
+CONTROL: first word LOW | MID | DEEP sets mode.
+BOOTSTRAP_CLASS: TEXT_ONLY | BOUND_RO | BOUND_RW | GHOST
+```
+
+### `TEXT_ONLY`
+
+Protocol operability passed, but execution was not tentable (`L0 = NOT_TENTABLE`), or no stable physical bind was established (`L2 = UNBOUND` or `AMBIGUOUS`, or `L3 = TEXT_ONLY`/`WEAK_PHYSICAL`, or `L4 = PARTIAL`/`MISMATCH`). Structural hold is maintained via the KERNEL HEADER. `REMOUNT` is available.
+
+### `BOUND_RO`
+
+A source-side physical bind was established (`L2 = BOUND`, `L3 = PHYSICAL`, `L4 = INTACT`), but source-side write/readback was unavailable (`L5 = R_ONLY`). The file was found via anchor content and is stably readable. `REMOUNT` is available.
+
+### `BOUND_RW`
+
+Physical bind established (`L2 = BOUND`, `L3 = PHYSICAL`, `L4 = INTACT`) and source-side write/readback verified via sibling probe (`L5 = RWP_VERIFIED`). This is the strongest `BOOTSTRAP_CLASS`. `REMOUNT` is available.
+
+### `GHOST`
+
+`G0` executed, but no sufficient classification basis remained to resolve as `TEXT_ONLY`, `BOUND_RO`, or `BOUND_RW`. This occurs when `AMBIENT` finds no usable bounded roots, or `L0 = NO`, or later internal outputs are inconsistent without yielding a stable non-physical class. `REMOUNT` is available.
+
+## What BOOTSTRAP_CLASS Does Not Mean
+
+<Warning>
+  These are hard constraints — do not treat `BOOTSTRAP_CLASS` as broader than its source-side scope.
+</Warning>
+
+- **It does not describe destination durability.** `BOOTSTRAP_CLASS` is source-side only. For destination-side results, see `PERSISTENCE_CLASS` (`ADAM PERSIST`).
+- **It does not imply cross-turn persistence.** Even `BOUND_RW` at bootstrap does not guarantee the host remains reliable for the entire session.
+- **A lower class is not a failure.** `TEXT_ONLY` and `GHOST` are valid operating conditions, not protocol errors.
+- **`BOUND_RW` at bootstrap does not certify the host.** It certifies what `G0` could prove within the current bounded pass, nothing more.
+
+The protocol's design posture on this is explicit:
+
+> *Persistence is a cascade, not a binary. Each fallback level is valid; lower levels are not failures, they are operating conditions. REMOUNT is always available regardless of persistence level.*
+
+## Liveness Ping While ACTIVE
+
+`ADAM PING` while the protocol is already `ACTIVE` is liveness-only. It emits a strict 2-line output:
+
+```text
+MODE: MID
+ADAM_PING_OK
+```
+
+`G0` does not re-run. Pending gating is not cleared. Overlay state is not reset. The session continues from exactly where it was.

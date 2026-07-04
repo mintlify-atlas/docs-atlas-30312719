@@ -1,0 +1,159 @@
+---
+title: "Structural Input Routing in A.D.A.M."
+sidebarTitle: "Routing"
+description: "A.D.A.M. routes by message structure — option blocks, step sequences, criteria items, and numeric constraints — not by keywords or semantic intent."
+---
+
+A.D.A.M. does not route by reading intent or detecting high-stakes topics. It routes by reading message shape. The structural kernel — defined in section S of the protocol — computes a set of boolean flags from each user message and maps those flags to routing and audit decisions.
+
+<Tip>
+  Write naturally. Structural detection operates on message shape, not phrasing. A simple sentence stays LOW. A message with multiple option blocks, numbers, and criteria items will trigger DEEP candidacy automatically.
+</Tip>
+
+---
+
+## The structural kernel
+
+The structural kernel is the single source of truth for `AUDIT_ON`, `DEEP_CANDIDATE`, `MINI_TABLE_TRIGGER`, and `RETROGRADE_HARD`. It is computed fresh from the current user message on every turn. Structural booleans do not persist across turns, except where a mapping explicitly depends on prior state (such as `prev_commit` in `NEW_CONSTRAINTS_AFTER_COMMIT`).
+
+<Note>
+  Commas, slashes, and backslashes are **not** structural triggers. High-stakes semantics alone do **not** trigger DEEP. Use the manual override `DEEP` if you need full decision support on a message that lacks structural signals.
+</Note>
+
+---
+
+## Primitives
+
+Structural detection operates on a small set of line-level primitives:
+
+| Primitive | Definition |
+|---|---|
+| **Line-start** | First non-whitespace character of a line |
+| **Criteria item** | Line-start `-` or `*`, excluding option blocks and step blocks |
+| **Option block** | Line-start `A)` / `B)` / ... or `1)` / `2)` / ... |
+| **Step block** | Line-start `1.` / `2.` / `3.` / ... |
+
+The distinction between option blocks (`1)`) and step blocks (`1.`) matters: they map to different structural booleans.
+
+---
+
+## Structural booleans
+
+Each boolean is computed independently from the current message surface. None are inferred from tone, topic, or prior turns (except `NEW_CONSTRAINTS_AFTER_COMMIT`).
+
+| Boolean | True when |
+|---|---|
+| `HAS_NUM` | 2+ digits, a digit range, a comparator with any digit, or a percent with any digit. Dates count. |
+| `HAS_INLINE_3PLUS_ALTS_PARENS` | At least 3 inline parenthetical alternatives: `>=3` `(`, `>=3` `)`, and `>=2` `),` in the message. |
+| `HAS_2PLUS_OPTIONS` | At least 2 line-start option blocks. |
+| `HAS_3PLUS_OPTIONS` | At least 3 line-start option blocks. |
+| `HAS_STEPS_OR_TIMELINE` | At least 3 line-start step blocks, or at least 2 date/time patterns (`YYYY-MM-DD` or `HH:MM`). |
+| `HAS_3PLUS_CRITERIA` | At least 3 criteria items, or at least 2 semicolons in one message. |
+| `STRUCTURED_LIST_MARKERS` | Any criteria item, option block, or step block present. |
+| `NEW_CONSTRAINTS_AFTER_COMMIT` | `prev_commit` is true AND the current message contains `HAS_NUM`, `HAS_3PLUS_CRITERIA`, or `STRUCTURED_LIST_MARKERS`. |
+
+`prev_commit` is true when the immediately previous assistant reply contained an explicit COMMIT — a concrete recommendation or actionable conclusion. If the previous reply is unavailable or ambiguous, `prev_commit` is not inferred as true.
+
+---
+
+## Kernel mappings
+
+The booleans feed four derived signals that control routing, audit, and gating:
+
+```text
+MINI_TABLE_TRIGGER  = HAS_3PLUS_OPTIONS
+                      OR (HAS_2PLUS_OPTIONS AND (HAS_NUM OR HAS_3PLUS_CRITERIA))
+
+RETROGRADE_HARD     = NEW_CONSTRAINTS_AFTER_COMMIT
+
+DEEP_CANDIDATE      = (HAS_2PLUS_OPTIONS OR HAS_STEPS_OR_TIMELINE
+                        OR HAS_INLINE_3PLUS_ALTS_PARENS)
+                      AND (HAS_NUM OR HAS_3PLUS_CRITERIA OR RETROGRADE_HARD)
+
+AUDIT_ON            = (MODE==DEEP)
+                      OR DEEP_CANDIDATE
+                      OR RETROGRADE_HARD
+                      OR (STATE in {DECIDE, VERIFY}
+                          AND (HAS_2PLUS_OPTIONS OR HAS_STEPS_OR_TIMELINE
+                               OR HAS_NUM OR HAS_3PLUS_CRITERIA))
+```
+
+| Signal | Effect |
+|---|---|
+| `MINI_TABLE_TRIGGER` | MID reply includes a compact comparison mini-table and a "when to use what" conclusion |
+| `RETROGRADE_HARD` | Forces the overlay state back to EXPLORE; prior COMMIT is explicitly invalidated |
+| `DEEP_CANDIDATE` | Triggers the DEEP gating flow: `MODE: MID -> POSSIBLE DEEP` + `Switch to DEEP? (yes/no)` |
+| `AUDIT_ON` | Appends the exact 4-line AUDIT footer to the reply |
+
+---
+
+## Normative examples
+
+These examples are normative — they define correct structural interpretation:
+
+| Input | Boolean | Result |
+|---|---|---|
+| `v10` | `HAS_NUM` | true |
+| `v2` | `HAS_NUM` | false |
+| `1-2` | `HAS_NUM` | true |
+| `>=5` | `HAS_NUM` | true |
+| `5%` | `HAS_NUM` | true |
+| `A (10), B (20), C (30)` | `HAS_INLINE_3PLUS_ALTS_PARENS` | true |
+| `A (10), B (20)` | `HAS_INLINE_3PLUS_ALTS_PARENS` | false |
+| Line-start `A)` + line-start `B)` | `HAS_2PLUS_OPTIONS` | true |
+| Bullets only | `HAS_2PLUS_OPTIONS` | false |
+| Line-start `1)` + `2)` + `3)` | `HAS_3PLUS_OPTIONS` | true |
+| Line-start `1)` + `2)` only | `HAS_3PLUS_OPTIONS` | false |
+| Line-start `1.` + `2.` + `3.` | `HAS_STEPS_OR_TIMELINE` | true |
+| Line-start `1.` + `2.` only | `HAS_STEPS_OR_TIMELINE` | false |
+| `2026-03-05` alone | `HAS_STEPS_OR_TIMELINE` | false |
+| `2026-03-05 14:30` plus another date/time | `HAS_STEPS_OR_TIMELINE` | true |
+| 3 criteria bullets | `HAS_3PLUS_CRITERIA` | true |
+| 2 criteria bullets | `HAS_3PLUS_CRITERIA` | false |
+| `A; B; C` | `HAS_3PLUS_CRITERIA` | true |
+| `A; B` | `HAS_3PLUS_CRITERIA` | false |
+| `prev_commit=true` plus new list marker | `NEW_CONSTRAINTS_AFTER_COMMIT` | true |
+| `prev_commit=false` plus same marker | `NEW_CONSTRAINTS_AFTER_COMMIT` | false |
+| Criteria-only message, no options, no steps | `DEEP_CANDIDATE` | false |
+| 2 option blocks + 3 criteria + a number | `DEEP_CANDIDATE` | true |
+
+---
+
+## AUTO routing
+
+When no manual override is present, A.D.A.M. selects a routing path automatically:
+
+<Steps>
+  <Step title="AUTO_LIGHT → MODE: LOW">
+    Selected when the turn is a factoid, brief definition, trivial calculation, micro-procedure, explicit brevity request, or banter with no analysis demand.
+  </Step>
+  <Step title="AUTO_STANDARD → MODE: MID">
+    Selected for explanation requests, moderate evaluations or comparisons, and requests for rigor, pros/cons, confidence, or sources — provided `DEEP_CANDIDATE` is not true.
+  </Step>
+  <Step title="DEEP gating flow → MODE: MID → POSSIBLE DEEP">
+    Selected when `DEEP_CANDIDATE` is true. A.D.A.M. delivers a complete MID-level answer and appends the exact final line `Switch to DEEP? (yes/no)`. Entering DEEP requires an exact `yes` reply.
+  </Step>
+</Steps>
+
+Manual override (`LOW`, `MID`, or `DEEP` as the first token followed by whitespace) wins over all automatic routing. See [Modes](/concepts/modes) for override syntax and the boundary strictness rule.
+
+---
+
+## RETROGRADE_HARD and commit invalidation
+
+`RETROGRADE_HARD` fires when a previous assistant reply contained an explicit COMMIT and the current message adds new structural constraints. When this happens:
+
+- The overlay state resets to EXPLORE
+- The prior COMMIT is explicitly invalidated — A.D.A.M. must state what changed and why the prior conclusion no longer holds
+- Silent revision or silent preservation of the old COMMIT is not permitted
+
+A **micro-edit exception** applies: if the follow-up is purely textual and contains none of `HAS_NUM`, list markers, step markers, or 2+ semicolons, the COMMIT remains stable and `RETROGRADE_HARD` does not fire.
+
+| Message | Classification |
+|---|---|
+| `for clarity, I mean the second point` | Micro-edit — COMMIT stable |
+| `by fast I mean responsive, not powerful` | Micro-edit — COMMIT stable |
+| `I meant 150 euro` | Not micro-edit — `HAS_NUM` present |
+| `consider option C` | Not micro-edit — option block present |
+| `it must stay under 200 euro` | Not micro-edit — `HAS_NUM` present |
+| `also add speed and price` | Not micro-edit — list marker present |

@@ -1,0 +1,124 @@
+---
+title: "Sparse Local Provenance Signals in DEEP Replies"
+sidebarTitle: "Provenance Signals"
+description: "DEEP replies may carry per-block provenance signals (infer, depends:) that classify local epistemic support. Learn the signal grammar, eligibility rules, and placement contract."
+---
+
+In `MODE: DEEP` normal replies only, eligible top-level blocks may carry a single local provenance signal at the very end of the block. These signals are post-form, local, and visibility-bounded. They classify the epistemic support behind a specific block — they are not confidence ranks, not host health indicators, and not context integrity indicators. They do not replace the `AUDIT` block.
+
+## Eligible Blocks
+
+Signals only appear on **top-level column-1 numbered items** (`1.`, `2.`, `3.`) or **top-level column-1 bullet items** (`-`).
+
+The following block types are **not eligible** and receive no signal regardless of content:
+
+- Nested items (sub-bullets, sub-steps)
+- Sections and headings
+- Prose paragraphs
+- Tables
+- Code blocks
+- Block quotes
+
+## Block Boundary
+
+A block starts at a column-1 numbered or bullet item. It includes all continuation lines and nested sub-items until the next column-1 item or the end of the reply. The signal line is the block's final line — it closes the block.
+
+Nested sub-items do not receive their own signals, even if they would independently qualify.
+
+## Placement Rules
+
+- The signal appears on its own line, immediately after the block's final content line.
+- Never append a signal inline with block text or after punctuation on the same line as block text.
+- No prose, citation, or continuation may appear after the signal line within that block.
+
+## Freeze Rule
+
+Block form is finalized first. The signal is emitted after. The signal must not split, merge, reorder, expand, or rewrite the block in any way. If emitting the signal would require reshaping the block, omit the signal.
+
+## Visibility Definition
+
+Visibility is strict and narrow:
+
+- **Visible** = explicitly written in the block text, OR explicitly written somewhere in the current visible context.
+- **Not visible** = derived, recovered, or inferred from visible content rather than read directly.
+
+The following are excluded regardless of apparent visibility:
+
+- Wrapper or host-injected material
+- Hidden bridges or latent continuity
+- Long session memory
+
+<Note>
+  If visibility is doubtful, omit the signal. The visibility boundary depends on what the host mounts into the visible context window. When uncertain, the rule is always to omit.
+</Note>
+
+## Signal Grammar
+
+At most one signal per eligible block, placed at block end.
+
+### `infer`
+
+Emit only if an **inferential bridge is explicitly written in the block text**. The bridge must be shown in the text, not implied or recoverable from context. If the bridge is not written in the block text, omit `infer`.
+
+```text
+- Deploy the service to the staging cluster before switching production traffic.
+  The load test results from this session show p99 latency is within SLA at 2x expected load.
+infer
+```
+
+### `infer [pending]`
+
+Same conditions as `infer`, plus an **unresolved checkpoint explicitly named in the block text**. Both conditions must hold independently: the inferential bridge must be written in the block text, and the unresolved checkpoint must be named in the block text. The checkpoint must be specific — not generic caution and not deduced retrospectively. If either condition fails, omit `infer [pending]`.
+
+### `depends: <specific surfaced premise>`
+
+Emit only if **all three** of the following conditions hold:
+
+1. The non-visible premise is explicitly named in the block text or visible context.
+2. The name identifies the **specific premise**, not a generic category or vague conditional.
+3. The block's operative claim is linked to that premise by **explicit dependency wording in the block text** — not as a standalone assertion that merely mentions it in passing.
+
+If any condition fails, omit `depends:`.
+
+```text
+- Use the PostgreSQL managed service for this workload.
+  This depends on the $200/month budget constraint specified in the requirements.
+depends: $200/month budget constraint
+```
+
+### `depends: <specific surfaced premise> [pending]`
+
+Same as `depends:`, plus an **unresolved checkpoint explicitly named in the block text**. The premise may come from block text or visible context, but the unresolved checkpoint must be explicitly named in the block text. Both conditions must hold independently: `depends:` must pass, and the checkpoint must be named. If either condition fails, omit `depends: [pending]`.
+
+## Signal Precedence
+
+When evaluating which signal to emit, assess each signal's conditions independently. Then emit the highest-ranking signal that passes:
+
+| Rank | Signal |
+|------|--------|
+| 1 (highest) | `depends: <X> [pending]` |
+| 2 | `depends: <X>` |
+| 3 | `infer [pending]` |
+| 4 | `infer` |
+
+If `depends:` fails, `infer` is evaluated independently — it is not skipped. `[pending]` never appears alone. If none pass, emit no signal.
+
+## No Signal
+
+No signal is the default output when no signal condition passes after precedence evaluation. An absent signal carries no negative meaning and does not classify the block in any way.
+
+<Tip>
+  Most blocks in a DEEP reply will carry no signal. That is the intended default. Signals are sparse by design — they appear only when their conditions are concretely met in the written block text.
+</Tip>
+
+## Where Signals Do NOT Appear
+
+Provenance signals are scoped exclusively to `MODE: DEEP` normal replies. They do not appear in:
+
+- `MODE: LOW`, `MODE: MID`, or `MODE: MID -> POSSIBLE DEEP` replies
+- Strict command outputs (e.g. `ADAM PING`, `ADAM REMOUNT`, `ADAM PERSIST`)
+- Probe outputs
+- Bootstrap output
+- The `AUDIT` block itself
+- Nested sub-items within a DEEP reply
+- Ineligible block types: tables, code blocks, prose paragraphs, sections, quotes

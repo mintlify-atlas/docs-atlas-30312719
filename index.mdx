@@ -1,20 +1,75 @@
 ---
-title: "Introduction"
-description: "Welcome to your project"
+title: "A.D.A.M. — Adaptive Depth and Mode"
+sidebarTitle: "Home"
+description: "A spec-first control protocol that gives every AI chat response an explicit depth mode — LOW, MID, or DEEP — based on the structure of your request."
 ---
 
-Write a short description of your product here. What it does, who it's for, and what they can accomplish with it.
+A.D.A.M. is a behavioral specification you load into any AI chat host that supports a persistent instruction field. Once active, every reply is routed through one of three explicit depth modes: **LOW** for fast minimal answers, **MID** for structured default responses, and **DEEP** for full decision support. Depth is chosen by analyzing the shape of your message — not its keywords — and you can always override it manually.
 
-<Tip>
-  Ready to make this your own? Start by editing this page. Update your `docs.json` file to customize your site. Then fill out the [Quickstart](/quickstart) page.
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Activate A.D.A.M. in 30 seconds and send your first depth-routed message.
+  </Card>
+  <Card title="How It Works" icon="gears" href="/how-it-works">
+    Learn how structural routing, mode selection, and the output contract fit together.
+  </Card>
+  <Card title="Core Concepts" icon="book-open" href="/concepts/modes">
+    Understand LOW, MID, and DEEP modes, the state machine, and routing rules.
+  </Card>
+  <Card title="Command Reference" icon="terminal" href="/reference/commands/core-commands">
+    Every command, probe, and manual override — with exact syntax and output contracts.
+  </Card>
+</CardGroup>
 
-<Card title="Quickstart" icon="rocket" href="/quickstart">
-  This card links to the quickstart page in your project.
-</Card>
-<Card title="Components" icon="puzzle-piece" href="https://mintlify.com/docs/components">
-  Add cards, callouts, steps, tabs, and more to design and structure your pages.
-</Card>
-<Card title="Settings" icon="gear" href="https://mintlify.com/docs/organize/settings">
-  Set your site name, branding, and navigation in the `docs.json` file.
-</Card>
+## What A.D.A.M. changes
+
+Without a depth protocol, a chat session can drift: responses grow verbose, corrections pile up, and the assistant expands every topic by default. A.D.A.M. solves this by making depth explicit and structural.
+
+<CardGroup cols={3}>
+  <Card title="⚡ LOW" icon="circle-bolt">
+    Fast, minimal answers for factoids, definitions, and banter. No follow-up questions unless they materially change the answer.
+  </Card>
+  <Card title="🧭 MID" icon="compass">
+    Default structured mode for explanations, comparisons, and moderate evaluations. Compact structure only when it improves clarity.
+  </Card>
+  <Card title="🧠 DEEP" icon="brain">
+    Full decision support: explicit assumptions, comparisons, failure modes, stress tests, and a bounded AUDIT footer.
+  </Card>
+</CardGroup>
+
+## Get started in 3 steps
+
+<Steps>
+  <Step title="Download the protocol file">
+    Open [`A.D.A.M.v5.txt`](https://github.com/XxYouDeaDPunKxX/A.D.A.M.-Adaptive-Depth-and-Mode/blob/main/A.D.A.M.v5.txt) from the repository. This is the canonical spec — the entire protocol is contained in this single file.
+  </Step>
+  <Step title="Load it into your chat host">
+    Paste the full contents of `A.D.A.M.v5.txt` into your host's persistent instruction field (system prompt, custom instructions, or equivalent). The file must be fully visible in context — truncation will cause fail-closed behavior.
+  </Step>
+  <Step title="Activate with ADAM PING">
+    Send the exact message `ADAM PING`. You will receive a strict 4-line bootstrap output including your `BOOTSTRAP_CLASS`. A second `ADAM PING` confirms liveness. You are now ready to use depth-routed responses.
+  </Step>
+</Steps>
+
+<Note>
+  A.D.A.M. is not a library or a service — it is a portable text specification. There is nothing to install and no API to call. The spec **is** the implementation.
+</Note>
+
+## Why it works
+
+A.D.A.M. routes by **message structure**, not semantics. It counts option blocks, step sequences, criteria items, and numeric constraints to determine whether a request warrants deeper reasoning. This means simple requests stay light automatically, and complex requests trigger a consent-gated DEEP pass rather than silently expanding.
+
+<CardGroup cols={2}>
+  <Card title="Deep Gating Guide" icon="door-open" href="/guides/deep-gating">
+    How POSSIBLE DEEP detection and the consent gate work in practice.
+  </Card>
+  <Card title="Structural Routing" icon="route" href="/concepts/routing">
+    The structural kernel primitives that drive automatic mode selection.
+  </Card>
+  <Card title="Recovery and Remount" icon="arrow-rotate-left" href="/guides/recovery-and-remount">
+    How to recover an A.D.A.M. session after context loss using ADAM REMOUNT.
+  </Card>
+  <Card title="Host Compatibility" icon="plug" href="/guides/host-compatibility">
+    Known constraints and what to check before deploying A.D.A.M. on a new host.
+  </Card>
+</CardGroup>

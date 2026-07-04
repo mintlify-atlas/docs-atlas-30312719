@@ -1,0 +1,114 @@
+---
+title: "How A.D.A.M. Controls Response Depth"
+sidebarTitle: "How It Works"
+description: "A.D.A.M. uses a structural kernel to classify message shape, a priority ladder to resolve commands, and an output contract to validate every reply before emission."
+---
+
+When `A.D.A.M.v5.txt` is loaded and `ADAM PING` is sent, the protocol file becomes the active session contract. Not a background style guide, not a soft preference — a binding specification that governs how every reply is framed, at what depth, and under what conditions. This page explains the internal machinery that makes that contract work.
+
+## The protocol file as active contract
+
+A.D.A.M. is a spec-first protocol. The specification and the implementation are the same artifact: `A.D.A.M.v5.txt`. When the file is fully visible in the host's instruction field and the handshake command `ADAM PING` is sent, the protocol transitions from `TRANSPORT` state to `ACTIVE` state. From that moment, every non-strict reply must begin with a `MODE` tag, every structural routing decision is governed by section S of the spec, and every strict command output must match its fixed literal shape exactly.
+
+The protocol is explicit about what it governs (output format, mode routing, DEEP gating, audit behavior, strict command outputs) and what it does not govern (host instruction hierarchy, upload mounting semantics, tool availability, hard safety limits imposed by the host). This boundary is part of the design: A.D.A.M. does not pretend to control what it cannot control.
+
+## The priority ladder
+
+Every turn while A.D.A.M. is `ACTIVE` is resolved by walking a fixed priority ladder from top to bottom. The first rule that applies wins; lower rules are not evaluated for that turn.
+
+| Priority | Rule | What it handles |
+|---|---|---|
+| 1 | `REMOUNT_REPLAY_DETECTED` | Exact replay of the remount capsule body; re-enters `ACTIVE` from any state. |
+| 2 | `TRANSPORT_GATE` | While state is `TRANSPORT`, only `ADAM PING` and remount replay are available; all other messages get a fixed 2-line response. |
+| 3 | `OFF_GATE` | While state is `OFF`, only `ADAM ON` resumes the protocol; all other messages return a fixed 2-line response or plain chat. |
+| 4 | `ACTIVE_CONTROL_COMMANDS` | Public core commands (`ADAM PING`, `ADAM REMOUNT`, `ADAM PERSIST`, `ADAM OFF`, `ADAM ON`) and operator commands (`ADAM SELF TEST`, `TRACE INPUT`, `SYS STATUS`, `UNSUPPORTED WHY`) are matched here. |
+| 5 | `MANUAL_OVERRIDE` | If the first word is exactly `LOW`, `MID`, or `DEEP` followed by a space or end of message, that mode is forced for this reply. |
+| 6 | `STRUCTURAL_KERNEL` | Input shape is analyzed and automatic mode routing is computed (see below). |
+| 7 | `STATE_DEFAULT` | Fallback routing based on the current activity state if the structural kernel does not produce a definitive signal. |
+| 8 | `OUTPUT_CONTRACT` | Final validation pass: draft, validate, rewrite once if needed, fail-closed if strict invariants still cannot be satisfied. |
+
+Command matching is case-sensitive. Command phrases must start at character 1 of the message. Manual overrides are the only prefix-based controls — all other commands require an exact full-message match after trimming.
+
+## Structural routing
+
+A.D.A.M. does not route by semantics or keywords. It routes by input *shape*.
+
+The structural kernel (section S of the spec) reads the current message and computes a set of structural booleans from scratch on every turn. None of these booleans persist from one turn to the next. The primitives it counts are:
+
+- **Option blocks** — line-start `A)`, `B)`, `1)`, `2)`, ...
+- **Step blocks** — line-start `1.`, `2.`, `3.`, ...
+- **Criteria items** — line-start `-` or `*` (excluding option and step blocks)
+- **Numeric values** — two or more digits, digit ranges, comparators with digits, percentages, or dates
+
+From these counts, the kernel computes `DEEP_CANDIDATE`: a message is a DEEP candidate when it has two or more option blocks, or three or more step blocks / date-time patterns, or three or more inline parenthetical alternatives — combined with numeric values, three or more criteria items, or a retrograde condition. When `DEEP_CANDIDATE` is true, the protocol enters the DEEP gating flow rather than routing directly to `MID`.
+
+The kernel also computes `AUDIT_ON` (whether the AUDIT footer is required) and `MINI_TABLE_TRIGGER` (whether a compact comparison table should appear in the `MID` body).
+
+<Tip>
+  The structural kernel means you do not have to memorize routing rules. Write naturally. A simple question like "what is a foreign key" stays in LOW automatically. A structured message with multiple options, numbered steps, and a numeric constraint will trigger DEEP candidacy automatically and surface a consent gate before entering full decision-support mode.
+</Tip>
+
+## The output contract
+
+Every non-strict reply while A.D.A.M. is `ACTIVE` is subject to the output contract. The contract has two main obligations:
+
+**1. The MODE tag.** The first line of every normal reply must be exactly one of `MODE: LOW`, `MODE: MID`, `MODE: DEEP`, or `MODE: MID -> POSSIBLE DEEP`. No exceptions. No omissions.
+
+**2. The AUDIT footer.** When `AUDIT_ON` is true (always in `DEEP` mode, and also when the structural kernel detects certain structural conditions), the reply must end with exactly four lines:
+
+```text
+AUDIT
+ACTION: <text or ->
+RISK: <text or ->
+BASIS: <text or ->
+```
+
+The AUDIT block cannot be expanded. Lines that cannot be grounded use `-`. It is not a second answer — it is a bounded decision-quality guardrail.
+
+Before any reply is emitted, A.D.A.M. runs a publish-boundary validation pass:
+
+1. Draft the reply.
+2. Validate against strict invariants (valid MODE tag, correct AUDIT block if required, exact strict output shape if a command was matched).
+3. Rewrite once if validation fails.
+4. If strict invariants still cannot be satisfied after one rewrite — output only `ADAM_UNSUPPORTED`.
+
+This four-step sequence means every reply is validated before the user sees it. The output contract is the final linter.
+
+## Fail-closed design
+
+A.D.A.M. is designed around a single principle for invariant failures: **fail-closed, never approximate**.
+
+If a strict invariant cannot be satisfied reliably — because the host truncates the instruction field, rewrites assistant output, or cannot complete the required bootstrap checks — the protocol outputs only `ADAM_UNSUPPORTED`. It does not attempt a degraded response. It does not silently drop the `MODE` tag. It does not produce a partial AUDIT block.
+
+This matters because the visible `MODE` tag is the user-facing depth contract. A reply that omits the tag or produces a malformed AUDIT block is not a valid A.D.A.M. response — it is a broken contract. Outputting `ADAM_UNSUPPORTED` instead of a broken response is honest: it tells you the protocol cannot operate correctly in this context, so you can investigate the host setup rather than unknowingly receiving uncontracted output.
+
+If you see `ADAM_UNSUPPORTED` after activation, common causes are:
+
+- The instruction field was truncated and one or more required protocol literals are missing from visible context.
+- The host rewrites or reformats assistant output in ways that break strict line shapes.
+- The host cannot run the bootstrap operability check reliably.
+
+You can send `UNSUPPORTED WHY` after `ADAM_UNSUPPORTED` to get a single-line diagnostic: `CAUSE <CLASS>`, where `<CLASS>` is one of `HARD_STOP`, `AUDIT_FORMAT`, `HOST_FORMAT`, `CONTROL_STRICT`, `CONFLICT`, or `UNKNOWN`.
+
+## No-inertia rule
+
+Mode is recomputed from scratch on every single turn. The previous mode never justifies staying in the current mode. If you send a complex structured message after a series of simple LOW questions, the structural kernel evaluates that message on its own merits and may trigger DEEP candidacy — regardless of session history.
+
+Conversely, if the previous turn was a `DEEP` reply, the next turn is not automatically `DEEP`. The next turn's mode is determined entirely by what you send next.
+
+The one narrow exception is a one-turn inheritance rule: a message with no whitespace that ends with `?` inherits the previous exact mode (`LOW`, `MID`, or `DEEP`) for that one turn only. `MODE: MID -> POSSIBLE DEEP` is never inherited this way.
+
+<CardGroup cols={2}>
+  <Card title="Routing" icon="route" href="/concepts/routing">
+    Full reference for the structural kernel booleans and how they map to mode candidates.
+  </Card>
+  <Card title="State Model" icon="circle-nodes" href="/concepts/state-model">
+    TRANSPORT, ACTIVE, and OFF — the activity states and the reasoning overlay that runs inside them.
+  </Card>
+  <Card title="Output Contract" icon="file-contract" href="/concepts/output-contract">
+    The MODE tag, AUDIT footer, publish-boundary validation, and Sparse Local Provenance signals.
+  </Card>
+  <Card title="DEEP Gating" icon="lock" href="/guides/deep-gating">
+    How DEEP candidacy is detected, how the consent gate works, and when to use manual override.
+  </Card>
+</CardGroup>

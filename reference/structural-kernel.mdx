@@ -1,0 +1,130 @@
+---
+title: "Structural Kernel Reference: Primitives, Booleans, and Mappings"
+sidebarTitle: "Structural Kernel"
+description: "Complete reference for A.D.A.M.'s structural routing kernel — the primitives, boolean derivations, and kernel mappings that drive automatic mode selection and AUDIT triggering."
+---
+
+The structural kernel (section S) is the single source of truth for four routing outputs: `AUDIT_ON`, `DEEP_CANDIDATE`, `MINI_TABLE_TRIGGER`, and `RETROGRADE_HARD`. It operates purely on the structure of the current user message — structure beats wording, and booleans are computed fresh on every turn from the current message only. No structural result persists across turns unless a mapping explicitly depends on prior state (as with `prev_commit` in `NEW_CONSTRAINTS_AFTER_COMMIT`).
+
+<Note>
+  Commas, slashes, and backslashes are **not** structural triggers. High-stakes semantics alone do **not** trigger `DEEP`. If DEEP is needed for a high-stakes topic without structural triggers, use the manual override `DEEP`.
+</Note>
+
+## S1: Primitives
+
+All structural detection is built from four low-level primitives. "Line-start" means the first non-whitespace character of a line.
+
+| Primitive | Definition |
+|-----------|------------|
+| **Line-start** | First non-whitespace character of a line |
+| **Criteria item** | Line-start `-` or `*`, excluding option blocks and step blocks |
+| **Option block** | Line-start `A)` / `B)` / `C)` / ... or `1)` / `2)` / `3)` / ... |
+| **Step block** | Line-start `1.` / `2.` / `3.` / ... |
+
+## S2: Structural Booleans
+
+Each boolean is evaluated from scratch on the current user message. They are not mode signals — they are structural facts about the message's form.
+
+### `HAS_NUM`
+
+True if the message contains **2 or more digits**, a **digit range** (e.g. `1-2`), a **comparator with any digit** (e.g. `>=5`), or a **percent with any digit** (e.g. `5%`). Dates count.
+
+### `HAS_INLINE_3PLUS_ALTS_PARENS`
+
+True if the message contains at least 3 inline parenthetical alternatives. Approximate gate: **≥3 `(` and ≥3 `)` and ≥2 `),`**.
+
+### `HAS_2PLUS_OPTIONS`
+
+True if there are **at least 2 line-start option blocks**.
+
+### `HAS_3PLUS_OPTIONS`
+
+True if there are **at least 3 line-start option blocks**.
+
+### `HAS_STEPS_OR_TIMELINE`
+
+True if there are **at least 3 line-start step blocks**, OR **at least 2 date/time patterns** of the form `YYYY-MM-DD` or `HH:MM`.
+
+### `HAS_3PLUS_CRITERIA`
+
+True if there are **at least 3 criteria items**, OR **at least 2 semicolons in one message**.
+
+### `STRUCTURED_LIST_MARKERS`
+
+True if **any** criteria item, option block, or step block exists anywhere in the message.
+
+### `prev_commit`
+
+True if the immediately previous assistant reply contained an explicit COMMIT — defined as an actionable recommendation, selection, or conclusion intended to be followed (e.g. `"I recommend Option B. Do X then Y."`). This is not a structural boolean derived from the current message; it is a runtime input from the prior assistant turn. If the prior reply is unavailable or ambiguous, `prev_commit` is not inferred as true.
+
+### `NEW_CONSTRAINTS_AFTER_COMMIT`
+
+True if `prev_commit = true` AND (`HAS_NUM` OR `HAS_3PLUS_CRITERIA` OR `STRUCTURED_LIST_MARKERS`).
+
+## S3: Kernel Mappings
+
+The four public routing outputs are derived exclusively from the booleans above. No other section duplicates this logic.
+
+```text
+MINI_TABLE_TRIGGER   = HAS_3PLUS_OPTIONS
+                       OR (HAS_2PLUS_OPTIONS AND (HAS_NUM OR HAS_3PLUS_CRITERIA))
+
+RETROGRADE_HARD      = NEW_CONSTRAINTS_AFTER_COMMIT
+
+DEEP_CANDIDATE       = (HAS_2PLUS_OPTIONS OR HAS_STEPS_OR_TIMELINE OR HAS_INLINE_3PLUS_ALTS_PARENS)
+                       AND (HAS_NUM OR HAS_3PLUS_CRITERIA OR RETROGRADE_HARD)
+
+AUDIT_ON             = (MODE == DEEP)
+                       OR DEEP_CANDIDATE
+                       OR RETROGRADE_HARD
+                       OR (STATE in {DECIDE, VERIFY}
+                           AND (HAS_2PLUS_OPTIONS OR HAS_STEPS_OR_TIMELINE
+                                OR HAS_NUM OR HAS_3PLUS_CRITERIA))
+```
+
+**What each output drives:**
+
+| Output | Effect |
+|--------|--------|
+| `MINI_TABLE_TRIGGER` | In `MODE: MID`, include a compact comparison mini-table and a short "when to use what" conclusion. |
+| `RETROGRADE_HARD` | Hard retrograde: prior COMMIT is invalidated; prior state is reset to `EXPLORE`. |
+| `DEEP_CANDIDATE` | Triggers the DEEP gating flow (`MODE: MID -> POSSIBLE DEEP`). |
+| `AUDIT_ON` | Appends the exact 4-line `AUDIT` block to the reply. |
+
+<Note>
+  `DEEP_CANDIDATE` requires **both** a structural complexity dimension (options, steps, or inline alternatives) **and** a data/constraint dimension (numbers, criteria, or a retrograde condition). Structural complexity alone is not sufficient.
+</Note>
+
+## S4: Normative Examples
+
+These examples are authoritative. Use them to calibrate boolean evaluation.
+
+| Input | Boolean | Result |
+|-------|---------|--------|
+| `v10` | `HAS_NUM` | **true** — 2 digits |
+| `v2` | `HAS_NUM` | **false** — only 1 digit |
+| `1-2` | `HAS_NUM` | **true** — digit range |
+| `>=5` | `HAS_NUM` | **true** — comparator with digit |
+| `5%` | `HAS_NUM` | **true** — percent with digit |
+| `A (10), B (20), C (30)` | `HAS_INLINE_3PLUS_ALTS_PARENS` | **true** — 3 `(`, 3 `)`, 2 `),` |
+| `A (10), B (20)` | `HAS_INLINE_3PLUS_ALTS_PARENS` | **false** — only 2 `(`, 1 `),` |
+| line-start `A)` + `B)` | `HAS_2PLUS_OPTIONS` | **true** |
+| bullets only | `HAS_2PLUS_OPTIONS` | **false** |
+| line-start `1)` + `2)` + `3)` | `HAS_3PLUS_OPTIONS` | **true** |
+| line-start `1)` + `2)` only | `HAS_3PLUS_OPTIONS` | **false** |
+| line-start `1.` + `2.` + `3.` | `HAS_STEPS_OR_TIMELINE` | **true** — 3 step blocks |
+| line-start `1.` + `2.` only | `HAS_STEPS_OR_TIMELINE` | **false** |
+| `2026-03-05` alone | `HAS_STEPS_OR_TIMELINE` | **false** — only 1 date pattern |
+| `2026-03-05 14:30` + another datetime | `HAS_STEPS_OR_TIMELINE` | **true** — 2 date/time patterns |
+| 3 criteria bullets | `HAS_3PLUS_CRITERIA` | **true** |
+| 2 criteria bullets | `HAS_3PLUS_CRITERIA` | **false** |
+| `A; B; C` | `HAS_3PLUS_CRITERIA` | **true** — 2 semicolons |
+| `A; B` | `HAS_3PLUS_CRITERIA` | **false** — only 1 semicolon |
+| `prev_commit=true` + new list marker | `NEW_CONSTRAINTS_AFTER_COMMIT` | **true** |
+| `prev_commit=false` + same marker | `NEW_CONSTRAINTS_AFTER_COMMIT` | **false** |
+| criteria-only, no options, no steps | `DEEP_CANDIDATE` | **false** — no complexity dimension passes |
+| 2 option blocks + 3 criteria + number | `DEEP_CANDIDATE` | **true** — both dimensions pass |
+
+## S5: Governance
+
+The structural kernel is designed to be stable. New booleans are not added casually. Any change to a boolean definition or kernel mapping must be accompanied by updated normative examples and self-tests. The S section is the SSOT — its logic must not be duplicated in other sections.

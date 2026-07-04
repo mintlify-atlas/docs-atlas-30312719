@@ -1,0 +1,93 @@
+---
+title: "SYS STATUS: A.D.A.M. Session Health Probe"
+sidebarTitle: "SYS Status"
+description: "Run SYS STATUS to get a scored health table showing whether A.D.A.M. is standing and functional on the current host at this moment."
+---
+
+`SYS STATUS` is a session health probe that measures whether A.D.A.M. is **standing** (core invariants holding) and **functional** (usable behavior intact) on the current host, at this moment. Unlike `ADAM SELF TEST`, which checks the full behavioral contract against a suite of discrete test cases, `SYS STATUS` runs six targeted micro-tests in a live scored table and returns a single summary line showing uptime and functional health.
+
+<Note>
+  `SYS STATUS` is an operator command. It is not required for normal operation — it is a diagnostic you run when you want a quick scored health check of the current session.
+</Note>
+
+## Trigger
+
+Send the exact message:
+
+```text
+SYS STATUS
+```
+
+A.D.A.M. runs the `SYS_STATUS.md` probe file. If that file is unavailable in visible context, it outputs exactly:
+
+```text
+SOURCE_FILE_UNAVAILABLE SYS_STATUS.md
+```
+
+If the probe file is available but the strict output format cannot be satisfied, A.D.A.M. outputs exactly:
+
+```text
+ADAM_UNSUPPORTED
+```
+
+`SYS STATUS` is available only while `ACTIVE`. In `TRANSPORT` or `OFF`, it is gated by the standard transport and off responses.
+
+## Output format
+
+The output begins with the current mode tag (the usual first line for normal replies), followed by a single Markdown table and one final summary line. No questions, no extra commentary.
+
+The table has the exact header:
+
+```text
+| Area | Micro-test | Expected | Observed (produced now) | Score (0-3) |
+|---|---|---|---|---|
+```
+
+Each row scores a specific area from 0 to 3. The `Observed` cell shows what the model actually produces for that micro-test scenario — this is live output, not a description.
+
+### Final line
+
+```text
+UPTIME: <0-3> | FUNCTIONAL: <0-3> | SCORES: TAG=<0-3>,FACTOID=<0-3>,BANTER=<0-3>,DEEP_GATING=<0-3>,GATING_NO=<0-3>,NO_INERTIA=<0-3>
+```
+
+Where:
+- **UPTIME** = rounded average of (TAG, DEEP_GATING, GATING_NO)
+- **FUNCTIONAL** = rounded average of (FACTOID, BANTER, NO_INERTIA)
+
+## Scored areas
+
+Each row in the table targets a specific behavioral invariant:
+
+| Area | What it checks |
+|---|---|
+| `TAG` | Does the first line of a normal reply carry the correct mode tag? |
+| `FACTOID+AUTO_LIGHT` | Does a factoid question (`capital of germany`) route to `LOW` with a minimal answer and no extras? |
+| `BANTER+LIGHT_MINIMAL` | Does a banter turn route to `LOW` with a short answer and no follow-up question? |
+| `DEEP_GATING` | Does a structural DEEP candidate produce `MODE: MID -> POSSIBLE DEEP` with the correct gating shape, ending in `Switch to DEEP? (yes/no)`? |
+| `GATING_NO` | After a `no` reply to gating, does A.D.A.M. stay out of `DEEP`? |
+| `NO_INERTIA` | After a `DEEP` reply, does a factoid question correctly route to `LOW`? |
+
+<Accordion title="UPTIME vs. FUNCTIONAL — what each composite score means">
+  **UPTIME** (averaged from TAG, DEEP_GATING, GATING_NO) reflects whether the core structural invariants are holding: mode tagging, gating detection, and gating control. A low UPTIME score indicates the protocol scaffold itself may be degraded.
+
+  **FUNCTIONAL** (averaged from FACTOID, BANTER, NO_INERTIA) reflects whether the session is delivering usable behavior: correct auto-routing for light input, correct brevity discipline, and correct no-inertia recomputation. A low FUNCTIONAL score with a high UPTIME score can indicate that routing heuristics are drifting even while the output structure is intact.
+</Accordion>
+
+## Internal effect
+
+In addition to the scored output, `SYS STATUS` has one internal effect that is not printed:
+
+> Re-applies the active A.D.A.M. spec as SSOT and resets the State Overlay to `EXPLORE` for the next turn only.
+
+This means the turn immediately following `SYS STATUS` starts from a clean overlay state regardless of prior session depth. The effect applies to the next turn only and does not persist.
+
+## Probe unavailability
+
+If `SYS_STATUS.md` is not mounted in visible local context, the strict fallback is:
+
+```text
+SOURCE_FILE_UNAVAILABLE SYS_STATUS.md
+```
+
+This is the same pattern used by `ADAM SELF TEST` when its probe file is absent. Neither command fabricates results without its source file.

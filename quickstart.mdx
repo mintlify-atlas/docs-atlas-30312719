@@ -1,47 +1,105 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with A.D.A.M. in 30 Seconds"
+sidebarTitle: "Quickstart"
+description: "Load A.D.A.M.v5.txt into your AI chat host, send ADAM PING to activate, and start receiving depth-labeled responses immediately."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
+The entire A.D.A.M. protocol is a single portable text file. There is nothing to install and no account to create. You copy the file, paste it into your host's instruction field, and send one command. From that point forward, every response is depth-labeled and governed by the protocol contract.
 
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+<Warning>
+  If the host cannot satisfy the protocol's strict output invariants — for example, because it truncates the instruction field, rewrites assistant output, or cannot run the required bootstrap checks — A.D.A.M. will output only `ADAM_UNSUPPORTED`. This is intentional fail-closed behavior, not a bug. A.D.A.M. will not pretend to be active when the output contract cannot be met.
+</Warning>
 
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+## Activate A.D.A.M.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
-
-    ```bash
-    npm install your-package
-    ```
+  <Step title="Get A.D.A.M.v5.txt">
+    Open [`A.D.A.M.v5.txt`](https://github.com/XxYouDeaDPunKxX/A.D.A.M.-Adaptive-Depth-and-Mode/blob/main/A.D.A.M.v5.txt) from the repository and copy its entire contents. The protocol is a single, self-contained text file — everything A.D.A.M. needs to govern session behavior is inside it.
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
-
-    ```bash
-    your-cli init
-    ```
+  <Step title="Load it into your host's instruction field">
+    Paste the full file text into your chat host's persistent instruction field — this is the system prompt, custom instructions, or equivalent surface depending on your host. The **complete file must be visible in context**. Truncation causes fail-closed behavior, because the protocol checks for specific required literals before activating.
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+  <Step title="Send the activation ping">
+    In your first message, send exactly:
 
-    ```bash
-    your-cli start
+    ```text
+    ADAM PING
     ```
+
+    This is the canonical bootstrap trigger. Uploading the file alone does not activate the protocol — the exact `ADAM PING` command is required. The host will reply with exactly 4 lines:
+
+    ```text
+    MODE: MID
+    ADAM_PING_OK
+    CONTROL: first word LOW | MID | DEEP sets mode.
+    BOOTSTRAP_CLASS: TEXT_ONLY | BOUND_RO | BOUND_RW | GHOST
+    ```
+
+    The `BOOTSTRAP_CLASS` line reports the source-side bootstrap state the protocol established during activation. See [What BOOTSTRAP_CLASS means](#what-bootstrap_class-means) below.
+  </Step>
+  <Step title="Send a second ADAM PING (liveness check)">
+    Send `ADAM PING` a second time:
+
+    ```text
+    ADAM PING
+    ```
+
+    The first ping ran the full bootstrap sequence. The second is a liveness check — it confirms A.D.A.M. is still active on the next turn without rerunning the bootstrap. You should see exactly 2 lines:
+
+    ```text
+    MODE: MID
+    ADAM_PING_OK
+    ```
+
+    If you see the full 4-line response again instead of 2 lines, the host may have lost context between turns. Check that the instruction field is persistent across messages.
+  </Step>
+  <Step title="Ask a normal question">
+    Send any simple question, for example:
+
+    ```text
+    capital of germany
+    ```
+
+    A.D.A.M. will route this automatically to LOW — a fast, minimal reply — because the input has no structural complexity. You should see:
+
+    ```text
+    MODE: LOW
+    Berlin.
+    ```
+
+    Every normal reply while A.D.A.M. is active begins with a `MODE` tag. That tag is the visible depth contract on every response.
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## Manual depth override
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+You can force any depth mode by starting your message with `LOW`, `MID`, or `DEEP` followed by a space, then your content. The first word is interpreted as the mode token and the rest is your request.
+
+```text
+DEEP explain the tradeoffs between SQL and NoSQL for a 10M-row dataset
+```
+
+```text
+LOW what is a foreign key
+```
+
+```text
+MID compare indexing strategies for a high-read workload
+```
+
+Manual override takes priority over automatic structural routing. Use `DEEP` as the first word when you want full decision support without waiting for the protocol to detect a candidate and ask for consent.
+
+Note that the boundary check is strict: `DEEP,` (with a comma) or `DEEP:` are not valid override tokens. The first word must be exactly `LOW`, `MID`, or `DEEP` followed by a space or end of message.
+
+## What BOOTSTRAP_CLASS means
+
+The `BOOTSTRAP_CLASS` line in the first `ADAM PING` response reports what the protocol was able to verify about its own source context during activation. It describes the source-side state at bootstrap time — it does not describe host reliability across all future turns.
+
+| Class | Meaning |
+|---|---|
+| `TEXT_ONLY` | Protocol operability passed, but execution was not tentable or no stable physical bind to the source file was established. The protocol is active and functional; recovery via `ADAM REMOUNT` is available. |
+| `BOUND_RO` | A physical source file was found and bound by content identity. The source is readable but source-side write/readback was not verified. |
+| `BOUND_RW` | A physical source file was found, bound, and source-side write/readback was verified. The strongest source-side class. |
+| `GHOST` | The bootstrap ran but no sufficient classification basis remained. No stable physical bind was established. |
+
+`TEXT_ONLY` is a normal, valid operating condition — not a failure. Most hosted chat environments will report `TEXT_ONLY` because they do not expose a writable local file system to the model. The protocol governs responses correctly in all four classes.

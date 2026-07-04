@@ -1,0 +1,127 @@
+---
+title: "Understanding A.D.A.M.'s AUDIT Footer"
+sidebarTitle: "AUDIT Footer"
+description: "The AUDIT block is A.D.A.M.'s bounded epistemic footer. Learn when it appears, what each field means, and how to read the grounding signals correctly."
+---
+
+A.D.A.M. keeps its main reply body clean. When grounding information is needed — the dominant next step, the key risk, the basis for a claim — it is surfaced separately in a strict, bounded block appended to the end of the reply. That block is the `AUDIT` footer.
+
+This page explains when the `AUDIT` footer appears, what each of its four lines means, and what it deliberately does not do.
+
+## What AUDIT Is
+
+The `AUDIT` footer is a strict 4-line block that surfaces three grounding signals for the reply: the dominant action, the dominant risk, and the local grounding basis. It appears only when `AUDIT_ON` is true, and it is always exactly four lines — no more, no less.
+
+It is not a second essay. It is not a confidence score. It is not a completeness claim. It is a bounded, non-expandable footer that makes the operational substance of a reply explicit without adding to the reply body.
+
+## When AUDIT_ON Is True
+
+The `AUDIT` block is appended automatically in any of the following conditions:
+
+- **`MODE == DEEP`** — The AUDIT footer is always on in `DEEP` mode, without exception.
+- **`DEEP_CANDIDATE` is true** — The structural kernel detected DEEP candidacy (multiple options, steps or timeline, or inline alternatives combined with numbers, criteria, or a retrograde constraint). This includes the `MODE: MID -> POSSIBLE DEEP` gating reply.
+- **`RETROGRADE_HARD` is true** — New constraints were introduced after a prior explicit `COMMIT`, invalidating a previous recommendation.
+- **STATE is `DECIDE` or `VERIFY` AND the message has structural complexity** — Specifically, when the session is in a decision or verification overlay state and the current message contains options, steps, numbers, or criteria.
+
+## Exact Format
+
+The `AUDIT` block always looks like this:
+
+```text
+AUDIT
+ACTION: <text or ->
+RISK: <text or ->
+BASIS: <text or ->
+```
+
+The format rules are strict:
+
+- Exactly **one space** after each colon
+- **No bullets** inside the AUDIT block
+- **No extra lines** — exactly 4 lines total
+- **No expansion** beyond those 4 lines for any reason
+
+<Warning>
+The AUDIT block must remain exactly 4 lines. Any expansion — an extra explanation, a sub-bullet, a fifth line — makes the reply invalid under A.D.A.M.'s output contract. A.D.A.M. will not expand AUDIT even when the reply body is long or the topic is complex.
+</Warning>
+
+### Placement Rules
+
+- **If gating is present** (i.e. the reply ends with `Switch to DEEP? (yes/no)`): the AUDIT block is placed **immediately before** the gating line.
+- **If no gating is present**: the AUDIT block is the **final block** of the reply — nothing follows it.
+
+## What Each Field Means
+
+### ACTION:
+
+The dominant operational next step derived from the body of the reply. If the reply body contains a clear recommended action or a concrete next step, `ACTION:` names it.
+
+If the body contains no operational next step — for example, if the reply is purely analytical with no recommendation — `ACTION:` is `-`.
+
+### RISK:
+
+The dominant downside or failure mode surfaced in the reply body. If the reply body identifies a key risk, a critical caveat, or a significant failure mode, `RISK:` names it.
+
+If the body contains no concrete downside or failure mode, `RISK:` is `-`.
+
+### BASIS:
+
+One compact, local grounding basis for the reply. This must be something concrete: a specific check that was done, a visible source explicitly cited in the reply, or an observable verification step that could confirm the reply's core claim.
+
+`BASIS:` is **not** a general explanation field. It does not summarize the reply. It does not describe the reasoning process. It must be a concrete check, a visible source, or an observable verification basis — nothing more.
+
+If no such concrete basis exists in the reply body, `BASIS:` is `-`.
+
+## Why `-` Is Normal
+
+Using `-` in an `AUDIT` field is not an error or a protocol failure. It means the grounding for that line was absent in the reply body, and A.D.A.M. will not fabricate grounding to fill the field.
+
+The `-` discipline is intentional. A.D.A.M. explicitly prohibits adding material to the reply body retroactively to justify a non-`-` AUDIT line. If the body doesn't support a grounded `ACTION:`, `RISK:`, or `BASIS:`, the correct output is `-`.
+
+An `AUDIT` block with all three lines as `-` is valid output:
+
+```text
+AUDIT
+ACTION: -
+RISK: -
+BASIS: -
+```
+
+## A Complete Example
+
+Here is a complete `DEEP` reply showing the AUDIT footer in context:
+
+```text
+MODE: DEEP
+TRACE INPUT: [confronto tra opzioni] [numeri, date o limiti]
+
+[body of the reply with comparisons, assumptions, and failure modes...]
+
+AUDIT
+ACTION: Deploy to staging first; validate latency under load before switching traffic.
+RISK: Cold-start penalty on first requests may exceed SLA if instance size is too small.
+BASIS: Confirmed via prior load test results visible in this session.
+```
+
+And here is an example where no grounding basis was available for any line:
+
+```text
+AUDIT
+ACTION: -
+RISK: -
+BASIS: -
+```
+
+## What AUDIT Is Not
+
+It helps to be explicit about what the `AUDIT` footer does not do:
+
+| What people sometimes expect | What AUDIT actually is |
+|---|---|
+| A confidence score for the reply | Not present — AUDIT does not rate certainty |
+| A completeness claim | Not present — AUDIT does not assert coverage |
+| A second explanation of the reply body | Not present — AUDIT does not summarize or expand the body |
+| A general justification field | Not present — `BASIS:` must be a concrete check, source, or observable basis |
+| An expandable section | Not present — AUDIT is always exactly 4 lines |
+
+The `AUDIT` footer is a discipline tool, not a commentary layer. It surfaces grounding signals without adding to the reply's reasoning surface.

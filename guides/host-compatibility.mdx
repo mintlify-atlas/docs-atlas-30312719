@@ -1,0 +1,124 @@
+---
+title: "Host Compatibility: Running A.D.A.M. on Any Chat Platform"
+sidebarTitle: "Host Compatibility"
+description: "A.D.A.M. requires a persistent instruction field that holds the full protocol file. Learn the requirements, known limits, and how to verify activation on any host."
+---
+
+A.D.A.M. is a spec-first control protocol: the spec **is** the implementation. This means the protocol's behavior depends entirely on the host's ability to hold and apply the full `A.D.A.M.v5.txt` file as an active instruction set — not just as visible text, but as the governing behavioral contract for every reply in the session.
+
+Not all hosts can do this reliably. This guide explains what A.D.A.M. requires, where hosts typically fall short, and how to confirm that your chosen host can support the protocol before you rely on it.
+
+## What A.D.A.M. Requires from a Host
+
+A.D.A.M. needs one thing above all else: **a stable instruction surface** — a system prompt, custom instructions field, or equivalent persistent input — that can hold the complete contents of `A.D.A.M.v5.txt` in active context.
+
+"Active context" means the file is mounted as the governing instruction set for every assistant reply, not merely appended to the conversation as a message. The distinction matters: a file that can be seen is not the same as a file that is in force.
+
+The protocol enforces this discipline itself. If the instruction surface is too small to hold the full file, or if the host truncates the context window in a way that drops sections of the protocol, A.D.A.M. will not guess at missing rules. It will fail-closed.
+
+## Upload Is Transport Only
+
+<Warning>
+Uploading `A.D.A.M.v5.txt` as a file attachment or document does **not** activate the protocol. File upload is treated as transport only — the file may be visible to the assistant, but it is not mounted as an active instruction set.
+
+Activation always requires sending the exact command `ADAM PING` after the protocol file has been loaded into the instruction field.
+</Warning>
+
+This is a hard protocol rule, not a suggestion. Even on hosts that allow file uploads, the upload step places the file in the context as a document rather than as an active behavioral contract. The distinction is enforced at the bootstrap boundary, which runs only during exact `ADAM PING` while in `TRANSPORT` state.
+
+## Known Limits and Failure Modes
+
+A.D.A.M. is explicit about what it does and does not govern. The following are outside the protocol's control (per section A2 of the spec):
+
+- **Truncated context** — If the host truncates the visible context window and drops sections of the protocol file, A.D.A.M. will not infer the missing sections. The bootstrap will fail-closed with `ADAM_UNSUPPORTED`.
+- **Host UI banners, reasoning panes, and wrappers** — These are injected by the host platform and are outside the protocol's scope. They may appear alongside or around protocol output without being part of the output contract.
+- **Strict output rewriting** — Some hosts reformat assistant replies (adding markdown, collapsing lines, or injecting structure). Because A.D.A.M.'s command outputs are fixed literals with exact line-boundary contracts, any host-side reformatting of strict output lines will break the output contract and may trigger fail-closed behavior.
+- **Cross-chat persistence** — A.D.A.M. does not persist state across chat sessions. Each new session starts in `TRANSPORT` state and requires either a fresh `ADAM PING` activation or an exact remount replay to reach `ACTIVE`.
+- **Rate limits or wrapper interference** — If rate limiting or host-level request wrapping prevents exact strict output from being emitted, the invariant is treated as failed and A.D.A.M. will fail-closed rather than approximate.
+
+## How to Verify That a Host Works
+
+Use this procedure when evaluating a new host or after making changes to your instruction field setup.
+
+<Steps>
+  <Step title="Load the protocol file">
+    Copy the full contents of `A.D.A.M.v5.txt` into the host's instruction field — the system prompt, custom instructions panel, or equivalent persistent field. Do not upload it as a file attachment.
+  </Step>
+  <Step title="Send the first ADAM PING">
+    Send the exact message `ADAM PING` (case-sensitive, no extra characters). The bootstrap ping should produce **exactly 4 lines**:
+    ```text
+    MODE: MID
+    ADAM_PING_OK
+    CONTROL: first word LOW | MID | DEEP sets mode.
+    BOOTSTRAP_CLASS: TEXT_ONLY | BOUND_RO | BOUND_RW | GHOST
+    ```
+    The `BOOTSTRAP_CLASS` line will show one of the four classes. Any deviation from this exact 4-line shape — extra text, merged lines, missing lines — means the host is reformatting strict output and the protocol cannot operate reliably.
+  </Step>
+  <Step title="Send a second ADAM PING (liveness check)">
+    Send `ADAM PING` again. The liveness ping should produce **exactly 2 lines**:
+    ```text
+    MODE: MID
+    ADAM_PING_OK
+    ```
+    This confirms the protocol is active and that the second ping correctly runs as a liveness-only check rather than a second full bootstrap.
+  </Step>
+  <Step title="Ask a simple factoid">
+    Ask a short, simple question — for example: `capital of germany`. The response should start with `MODE: LOW` followed by a minimal answer, such as:
+    ```text
+    MODE: LOW
+    Berlin.
+    ```
+    This confirms that automatic routing is working and that LOW mode is being applied for simple requests.
+  </Step>
+  <Step title="Interpret the result">
+    If all three checks passed — correct 4-line bootstrap, correct 2-line liveness, and `MODE: LOW` for a simple question — the host is compatible and A.D.A.M. is operating correctly.
+
+    If you receive `ADAM_UNSUPPORTED` at any point, the host cannot satisfy the protocol's strict invariants. See the section below on what to do next.
+  </Step>
+</Steps>
+
+## Understanding BOOTSTRAP_CLASS
+
+The `BOOTSTRAP_CLASS` value in the first ping output tells you how strongly the host has established the protocol source during bootstrap. It is a source-side assessment — not a statement about the host's reliability over time or across sessions.
+
+<CardGroup cols={2}>
+  <Card title="BOUND_RW" icon="lock">
+    Source-side write/readback verified. The protocol was able to confirm the source file physically — the strongest class. This is only possible on hosts that support code execution and writable local paths.
+  </Card>
+  <Card title="BOUND_RO" icon="eye">
+    Physical file bind established, read-only. The source file was found and its identity confirmed, but source-side write verification was not available.
+  </Card>
+  <Card title="TEXT_ONLY" icon="file-lines">
+    Protocol operability passed, but no stable physical bind was established (either execution was not possible, or no physical bind could be proved). The protocol is still operable. `ADAM REMOUNT` is the recommended recovery path.
+  </Card>
+  <Card title="GHOST" icon="ghost">
+    Physical bootstrap ran but no sufficient classification basis remained. The protocol may still be partially operable. `ADAM REMOUNT` is the recovery path.
+  </Card>
+</CardGroup>
+
+`TEXT_ONLY` and `GHOST` are valid operating conditions — they are not failures. The protocol is designed to operate at all levels. Lower classes simply mean less physical verification was possible; A.D.A.M. will still route, audit, and gate correctly.
+
+## What to Do When the Host Fails
+
+If A.D.A.M. outputs `ADAM_UNSUPPORTED`, the host has failed a strict invariant. This is intentional: the protocol fails-closed rather than silently degrading or pretending to be active when it cannot satisfy its output contract.
+
+To get more detail on the failure, send the operator command `UNSUPPORTED WHY` immediately after receiving `ADAM_UNSUPPORTED`. The reply will be a single line:
+
+```text
+CAUSE <CLASS>
+```
+
+Where `<CLASS>` is one of:
+
+| Class | Meaning |
+|---|---|
+| `HARD_STOP` | A hard platform-level or safety stop prevented protocol operation. |
+| `AUDIT_FORMAT` | The AUDIT block format invariant could not be satisfied. |
+| `HOST_FORMAT` | Host truncation, incomplete visible protocol context, or wrapper interference broke a strict invariant. |
+| `CONTROL_STRICT` | A strict command output contract could not be satisfied exactly. |
+| `CONFLICT` | A protocol conflict prevented normal operation. |
+| `UNKNOWN` | Best-effort inference from visible context was insufficient to classify the cause. |
+
+`HOST_FORMAT` is the most common cause on incompatible platforms. It covers truncated context, incomplete protocol visibility, and host-side reformatting that breaks strict line contracts.
+
+If the host repeatedly produces `ADAM_UNSUPPORTED`, consider switching to a host with a larger or more stable instruction surface, or one that does not reformat assistant output.

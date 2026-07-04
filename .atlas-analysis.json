@@ -1,0 +1,106 @@
+{
+  "projectType": "general",
+  "projectName": "A.D.A.M. — Adaptive Depth and Mode",
+  "projectDescription": "A spec-first control protocol for AI chat that routes responses through three explicit depth modes (LOW, MID, DEEP) using structural input analysis, consent-gated reasoning escalation, and bounded audit output.",
+  "theme": "luma",
+  "primaryColor": "#4F6BFF",
+  "lightColor": "#E8ECFF",
+  "darkColor": "#1A1F3C",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "how-it-works"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/modes",
+              "concepts/routing",
+              "concepts/state-model",
+              "concepts/output-contract"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/host-compatibility",
+              "guides/deep-gating",
+              "guides/audit-footer",
+              "guides/recovery-and-remount",
+              "guides/field-report"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Command Reference",
+            "pages": [
+              "reference/commands/core-commands",
+              "reference/commands/operator-commands",
+              "reference/commands/manual-override"
+            ]
+          },
+          {
+            "group": "Protocol Internals",
+            "pages": [
+              "reference/bootstrap",
+              "reference/structural-kernel",
+              "reference/provenance-signals"
+            ]
+          },
+          {
+            "group": "Diagnostics",
+            "pages": [
+              "reference/diagnostics/self-test",
+              "reference/diagnostics/sys-status",
+              "reference/diagnostics/trace-input"
+            ]
+          },
+          {
+            "group": "Lexicon",
+            "pages": [
+              "reference/lexicon"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Three explicit response depth modes: LOW (minimal), MID (structured), DEEP (full decision support)",
+    "Structural input routing — routes by message shape (options, steps, criteria, numbers), not keywords",
+    "Consent-gated DEEP entry via POSSIBLE DEEP -> Switch to DEEP? (yes/no) flow",
+    "Bounded AUDIT footer (ACTION / RISK / BASIS) appended only when warranted",
+    "Fail-closed invariants: outputs ADAM_UNSUPPORTED rather than approximating broken behavior",
+    "Transport/activity state machine: TRANSPORT -> ACTIVE -> OFF with exact command matching",
+    "Recovery via ADAM REMOUNT capsule replay from any state",
+    "Bootstrap classification (TEXT_ONLY, BOUND_RO, BOUND_RW, GHOST) from physical source verification",
+    "No-inertia rule: mode is recomputed every turn with no carry-over",
+    "Sparse Local Provenance signals (infer / depends:) on eligible DEEP blocks"
+  ],
+  "publicApiSurface": [
+    "ADAM PING — activate protocol or check liveness",
+    "ADAM OFF — deactivate protocol",
+    "ADAM ON — reactivate protocol",
+    "ADAM REMOUNT — emit recovery capsule; exact replay re-enters ACTIVE",
+    "ADAM PERSIST — deploy and verify a physical copy of the protocol source",
+    "LOW <message> — manual override: force LOW mode",
+    "MID <message> — manual override: force MID mode",
+    "DEEP <message> — manual override: force DEEP mode",
+    "ADAM SELF TEST — run external self-test probe",
+    "SYS STATUS — run operational health probe",
+    "TRACE INPUT — strict forensic input trace",
+    "UNSUPPORTED WHY — diagnostic probe after ADAM_UNSUPPORTED"
+  ]
+}
